@@ -40,19 +40,18 @@ export const Events = () => {
   return (
     <section
       id="events"
-      className="py-16 md:py-24 bg-slate-50 relative overflow-hidden"
+      className="py-8 md:py-12 bg-slate-50 relative overflow-hidden"
     >
-      {/* --- Background Pattern (Subtle & Light) --- */}
-      <div className="absolute inset-0 pointer-events-none opacity-40">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: "radial-gradient(#cbd5e1 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
-        />
-        <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-50 via-slate-50/50 to-transparent" />
-      </div>
+      {/* --- VISIBLE BACKGROUND GRID --- */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-40"
+        style={{
+          backgroundImage: "radial-gradient(#94a3b8 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+          opacity: 0.15, // Increased visibility
+        }}
+      />
+      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-50 via-slate-50/50 to-transparent" />
 
       <div className="container-wide mx-auto px-4 sm:px-6 relative z-10">
         {/* --- Header --- */}

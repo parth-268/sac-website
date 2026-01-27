@@ -80,19 +80,18 @@ export const Team = () => {
   return (
     <section
       id="team"
-      className="py-4 md:py-8 bg-white relative overflow-hidden"
+      className="py-8 md:py-12 bg-slate-50 relative overflow-hidden"
     >
-      {/* Background Pattern */}
-      <div className="absolute inset-0 pointer-events-none opacity-30">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: "radial-gradient(#cbd5e1 1px, transparent 1px)",
-            backgroundSize: "20px 20px",
-          }}
-        />
-        <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-white via-white/80 to-transparent" />
-      </div>
+      {/* --- VISIBLE BACKGROUND GRID --- */}
+      <div
+        className="absolute inset-0 pointer-events-none opacity-40"
+        style={{
+          backgroundImage: "radial-gradient(#94a3b8 1.5px, transparent 1.5px)",
+          backgroundSize: "24px 24px",
+          opacity: 0.15, // Increased visibility
+        }}
+      />
+      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-50 via-slate-50/50 to-transparent" />
 
       <div className="container-wide mx-auto px-4 sm:px-6 relative z-10">
         {/* --- Header (Left Aligned) --- */}
@@ -103,14 +102,17 @@ export const Team = () => {
           transition={{ duration: 0.5 }}
           className="text-left max-w-3xl mb-12"
         >
-          <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-0.5 rounded-full bg-slate-50 border border-slate-100 w-fit">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+          <div className="inline-flex items-center gap-2 mb-2 px-2.5 py-0.5 rounded-full bg-white border border-slate-200 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_#eab308]"></span>
             <span className="text-accent font-bold tracking-widest text-[10px] uppercase">
               The Council
             </span>
           </div>
-          <h2 className="font-heading text-3xl md:text-5xl font-bold text-slate-900 mb-4">
-            Meet the Team
+          <h2 className="font-heading text-3xl md:text-4xl font-bold text-slate-900 mb-2 leading-tight">
+            Meet The{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500">
+              Team
+            </span>
           </h2>
           <p className="text-slate-500 text-sm md:text-base leading-relaxed max-w-xl">
             The dedicated individuals working behind the scenes to foster

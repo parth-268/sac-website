@@ -65,19 +65,18 @@ export const About = () => {
   return (
     <section
       id="about"
-      className="py-8 md:py-16 bg-white relative overflow-hidden" // Reduced vertical padding
+      className="py-8 md:py-12 bg-slate-50 relative overflow-hidden" // Reduced vertical padding
     >
       {/* --- VISIBLE BACKGROUND GRID --- */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none opacity-40"
         style={{
           backgroundImage: "radial-gradient(#94a3b8 1.5px, transparent 1.5px)",
           backgroundSize: "24px 24px",
           opacity: 0.15, // Increased visibility
         }}
       />
-      {/* Fade at the bottom for smooth transition */}
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white to-transparent" />
+      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-50 via-slate-50/50 to-transparent" />
 
       <div className="container-wide mx-auto px-6 relative z-10">
         {/* --- Header --- */}
@@ -98,9 +97,21 @@ export const About = () => {
               </span>
             </div>
             <h2 className="font-heading text-3xl md:text-4xl font-bold text-slate-900 leading-tight">
-              {" "}
-              {/* Slightly smaller text */}
-              {aboutContent?.title || "Voice of IIM Sambalpur"}
+              {aboutContent?.title ? (
+                <>
+                  {aboutContent.title.split(" ").slice(0, -1).join(" ")}{" "}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500">
+                    {aboutContent.title.split(" ").slice(-1)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  Voice of{" "}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500">
+                    IIM Sambalpur
+                  </span>
+                </>
+              )}
             </h2>
           </div>
           <p className="text-slate-500 text-sm max-w-md md:text-right leading-relaxed font-medium">
