@@ -1,130 +1,339 @@
 import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { useContactInfo, useUpsertContactInfo } from "@/hooks/useContactInfo";
+import { useSiteSettings, useUpdateSiteSetting } from "@/hooks/useSiteSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  Globe,
+  Facebook,
+  Linkedin,
+  Instagram,
+  Twitter,
+  MapPin,
+  Phone,
+  Copyright,
+  Map,
+  Image as ImageIcon,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ImageUpload } from "@/components/admin/ImageUpload";
 
-const AdminSettings = () => {
-  const { data: contactInfo, isLoading } = useContactInfo();
-  const upsertContactInfo = useUpsertContactInfo();
-
-  const [form, setForm] = useState({
-    email: "",
-    phone: "",
-    address: "",
-    map_url: "",
-  });
+export default function AdminSettings() {
+  const { data: settings, isLoading } = useSiteSettings();
+  const updateSetting = useUpdateSiteSetting();
+  const [values, setValues] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (contactInfo) {
-      setForm({
-        email: contactInfo.email,
-        phone: contactInfo.phone || "",
-        address: contactInfo.address || "",
-        map_url: contactInfo.map_url || "",
+    if (settings) {
+      const initialValues: Record<string, string> = {};
+      settings.forEach((s) => {
+        initialValues[s.setting_key] = s.setting_value || "";
       });
+      setValues(initialValues);
     }
-  }, [contactInfo]);
+  }, [settings]);
 
-  const handleSave = async () => {
+  const handleChange = (key: string, val: string) => {
+    setValues((prev) => ({ ...prev, [key]: val }));
+  };
+
+  // Function to handle saving a single setting (used by ImageUpload auto-save)
+  const saveSingleSetting = async (key: string, value: string) => {
     try {
-      await upsertContactInfo.mutateAsync({
-        email: form.email,
-        phone: form.phone || null,
-        address: form.address || null,
-        map_url: form.map_url || null,
+      const settingObj = settings?.find((s) => s.setting_key === key);
+      if (!settingObj) {
+        // If the setting key doesn't exist in DB, we can't update it.
+        // You must ensure the SQL insert was run.
+        toast.error(`Setting '${key}' not found. Please run database setup.`);
+        return;
+      }
+      await updateSetting.mutateAsync({
+        id: settingObj.id,
+        setting_value: value,
       });
-      toast.success("Contact information saved");
+      toast.success("Logo updated successfully");
     } catch (error) {
-      toast.error("Failed to save contact information");
+      toast.error("Failed to save logo");
     }
   };
 
+  const handleSave = async (keysToSave: string[]) => {
+    try {
+      const promises = keysToSave.map((key) => {
+        const settingObj = settings?.find((s) => s.setting_key === key);
+        if (!settingObj) return Promise.resolve();
+        return updateSetting.mutateAsync({
+          id: settingObj.id,
+          setting_value: values[key],
+        });
+      });
+      await Promise.all(promises);
+      toast.success("Settings saved successfully");
+    } catch (error) {
+      toast.error("Failed to save settings");
+    }
+  };
+
+  if (isLoading)
+    return (
+      <AdminLayout title="Settings">
+        <Loader2 className="animate-spin" />
+      </AdminLayout>
+    );
+
   return (
-    <AdminLayout title="Settings">
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        </div>
-      ) : (
-        <div className="max-w-2xl">
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h2 className="font-heading text-lg font-semibold mb-4">
-              Contact Information
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              This information is displayed in the contact section of the
-              website.
-            </p>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="sac@iimsambalpur.ac.in"
+    <AdminLayout title="General Settings">
+      <div className="max-w-4xl space-y-8 pb-10">
+        {/* --- BRANDING & LOGOS --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <ImageIcon className="w-5 h-5 text-purple-500" /> Branding & Logos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* SAC Logo Upload */}
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">
+                  SAC Logo (Navbar)
+                </Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Used in the top navigation bar. Recommend a transparent PNG.
+                </p>
+                <ImageUpload
+                  value={values["sac_logo_url"] || ""}
+                  onChange={(url) => {
+                    handleChange("sac_logo_url", url);
+                    if (url) saveSingleSetting("sac_logo_url", url);
+                  }}
+                  folder="logos" // FIXED: Changed from bucketName to folder
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="+91 663 243 0012"
+              {/* College Logo Upload */}
+              <div className="space-y-3">
+                <Label className="text-base font-semibold">
+                  College Logo (Footer)
+                </Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Used in the footer area. Recommend a white/light transparent
+                  PNG.
+                </p>
+                <ImageUpload
+                  value={values["college_logo_url"] || ""}
+                  onChange={(url) => {
+                    handleChange("college_logo_url", url);
+                    if (url) saveSingleSetting("college_logo_url", url);
+                  }}
+                  folder="logos" // FIXED: Changed from bucketName to folder
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={form.address}
-                  onChange={(e) =>
-                    setForm({ ...form, address: e.target.value })
-                  }
-                  rows={3}
-                  placeholder="Indian Institute of Management Sambalpur..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="map_url">Google Maps URL</Label>
-                <Input
-                  id="map_url"
-                  value={form.map_url}
-                  onChange={(e) =>
-                    setForm({ ...form, map_url: e.target.value })
-                  }
-                  placeholder="https://maps.google.com/..."
-                />
-              </div>
-
-              <Button
-                variant="gold"
-                onClick={handleSave}
-                disabled={upsertContactInfo.isPending || !form.email}
-              >
-                {upsertContactInfo.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                <Save className="h-4 w-4 mr-2" />
-                Save Settings
-              </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </CardContent>
+        </Card>
+
+        {/* --- CONTACT INFO --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <Mail className="w-5 h-5" /> Contact Info
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={values["contact_email"] || ""}
+                    onChange={(e) =>
+                      handleChange("contact_email", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={values["contact_phone"] || ""}
+                    onChange={(e) =>
+                      handleChange("contact_phone", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Textarea
+                  className="pl-9"
+                  value={values["contact_address"] || ""}
+                  onChange={(e) =>
+                    handleChange("contact_address", e.target.value)
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Google Maps Embed URL</Label>
+              <div className="relative">
+                <Map className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  value={values["contact_map_url"] || ""}
+                  onChange={(e) =>
+                    handleChange("contact_map_url", e.target.value)
+                  }
+                  placeholder="http://googleusercontent.com/maps.google.com/..."
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={() =>
+                handleSave([
+                  "contact_email",
+                  "contact_phone",
+                  "contact_address",
+                  "contact_map_url",
+                ])
+              }
+              disabled={updateSetting.isPending}
+            >
+              {updateSetting.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}{" "}
+              Save Contact Info
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* --- SOCIAL LINKS --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <Globe className="w-5 h-5" /> Social Links
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Instagram</Label>
+                <div className="relative">
+                  <Instagram className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={values["social_instagram"] || ""}
+                    onChange={(e) =>
+                      handleChange("social_instagram", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>LinkedIn</Label>
+                <div className="relative">
+                  <Linkedin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={values["social_linkedin"] || ""}
+                    onChange={(e) =>
+                      handleChange("social_linkedin", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Twitter</Label>
+                <div className="relative">
+                  <Twitter className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={values["social_twitter"] || ""}
+                    onChange={(e) =>
+                      handleChange("social_twitter", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Facebook</Label>
+                <div className="relative">
+                  <Facebook className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    value={values["social_facebook"] || ""}
+                    onChange={(e) =>
+                      handleChange("social_facebook", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() =>
+                handleSave([
+                  "social_instagram",
+                  "social_linkedin",
+                  "social_twitter",
+                  "social_facebook",
+                ])
+              }
+              disabled={updateSetting.isPending}
+            >
+              {updateSetting.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}{" "}
+              Save Social Links
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* --- FOOTER SETTINGS --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <Copyright className="w-5 h-5" /> Footer Settings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Copyright Text</Label>
+              <Input
+                value={values["copyright_text"] || ""}
+                onChange={(e) => handleChange("copyright_text", e.target.value)}
+                placeholder="© 2024 SAC. All rights reserved."
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => handleSave(["copyright_text"])}
+              disabled={updateSetting.isPending}
+            >
+              {updateSetting.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}{" "}
+              Save Footer Settings
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </AdminLayout>
   );
-};
-
-export default AdminSettings;
+}

@@ -26,7 +26,7 @@ export default tseslint.config(
       // Disable these checks to allow production build to pass
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
-      "no-empty-pattern": "off"
+      "no-empty-pattern": "off",
     },
   },
 );

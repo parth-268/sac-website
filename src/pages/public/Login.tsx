@@ -1,25 +1,25 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ArrowLeft, Shield } from "lucide-react";
+import { Loader2, ArrowLeft, Shield, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 import { SEO } from "@/components/SEO";
+import heroCampus from "@/assets/hero_campus.png"; // Ensure you have this asset or similar
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const { signIn, signUp, user, isEditor, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // Redirect if already logged in as editor
   useEffect(() => {
     if (!authLoading && user && isEditor) {
       navigate("/admin", { replace: true });
@@ -29,133 +29,157 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
     try {
       if (isSignUp) {
         const { error } = await signUp(email, password, fullName);
-        if (error) {
-          toast.error(error.message);
-        } else {
-          toast.success(
-            "Account created! Please ask an admin to approve your access.",
-          );
-          setIsSignUp(false);
-        }
+        if (error) throw error;
+        toast.success("Account created!", {
+          description: "Please ask an admin to approve your access.",
+        });
+        setIsSignUp(false);
       } else {
         const { error } = await signIn(email, password);
-        if (error) {
-          toast.error(error.message);
-        } else {
-          toast.success("Welcome back!");
-          navigate("/admin", { replace: true });
-        }
+        if (error) throw error;
+        toast.success("Welcome back!");
+        navigate("/admin", { replace: true });
       }
-    } catch (err) {
-      toast.error("An unexpected error occurred");
+    } catch (err: any) {
+      toast.error(err.message || "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center p-4">
-      <SEO title="Login" description="Admin login for SAC Council" />
-      <div className="w-full max-w-md">
-        <a
-          href="/"
-          className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground mb-8 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="font-body">Back to Home</span>
-        </a>
+    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+      <SEO title="Login" description="Admin portal access for SAC" />
 
-        <div className="bg-card rounded-2xl shadow-elevated p-8">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield className="h-8 w-8 text-accent" />
-            </div>
-            <div className="font-heading font-bold text-2xl text-foreground mb-2">
-              {isSignUp ? "Create Account" : "Admin Login"}
-            </div>
-            <p className="text-muted-foreground font-body text-sm">
+      {/* Left: Visual Side */}
+      <div className="hidden lg:flex relative overflow-hidden bg-primary items-center justify-center p-12">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay"
+          style={{ backgroundImage: `url(${heroCampus})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-primary to-transparent" />
+
+        <div className="relative z-10 text-white max-w-lg space-y-6">
+          <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center text-primary font-bold text-3xl mb-8">
+            S
+          </div>
+          <h1 className="font-heading text-5xl font-bold leading-tight">
+            Manage the <br />
+            Student Voice.
+          </h1>
+          <p className="text-lg text-white/70 leading-relaxed">
+            Welcome to the Student Affairs Council digital command center.
+            Manage events, update content, and connect with the campus.
+          </p>
+        </div>
+      </div>
+
+      {/* Right: Form Side */}
+      <div className="flex items-center justify-center p-6 lg:p-12 relative">
+        <Button
+          variant="ghost"
+          className="absolute top-6 left-6 gap-2"
+          onClick={() => navigate("/")}
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Home
+        </Button>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md space-y-8"
+        >
+          <div className="text-center">
+            <h2 className="font-heading text-3xl font-bold">
+              {isSignUp ? "Create Account" : "Welcome Back"}
+            </h2>
+            <p className="text-muted-foreground mt-2">
               {isSignUp
-                ? "Sign up to request admin access"
-                : "Sign in to manage the SAC website content"}
+                ? "Enter your details to request access"
+                : "Sign in to access your dashboard"}
             </p>
           </div>
 
-          {user && !isEditor && !authLoading && (
-            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-6">
-              <p className="text-sm text-destructive font-body">
-                Your account doesn't have editor permissions. Please contact an
-                administrator.
-              </p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {isSignUp && (
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label>Full Name</Label>
                 <Input
-                  id="fullName"
-                  type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Your full name"
+                  placeholder="John Doe"
                   required={isSignUp}
+                  className="bg-secondary/50"
                 />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label>Email Address</Label>
               <Input
-                id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@iimsambalpur.ac.in"
+                placeholder="name@iimsambalpur.ac.in"
                 required
+                className="bg-secondary/50"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label>Password</Label>
               <Input
-                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={6}
+                className="bg-secondary/50"
               />
             </div>
 
             <Button
               type="submit"
-              variant="gold"
-              className="w-full"
+              size="lg"
+              className="w-full bg-primary hover:bg-primary/90"
               disabled={loading}
             >
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {isSignUp ? "Create Account" : "Sign In"}
+              {loading ? (
+                <Loader2 className="animate-spin" />
+              ) : isSignUp ? (
+                "Create Account"
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or
+              </span>
+            </div>
+          </div>
+
+          <div className="text-center">
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-accent hover:underline font-body"
+              className="text-sm font-medium text-accent hover:underline"
             >
               {isSignUp
                 ? "Already have an account? Sign in"
-                : "Don't have an account? Sign up"}
+                : "New here? Create an account"}
             </button>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

@@ -1,22 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useHeroBanners,
   useCreateHeroBanner,
   useUpdateHeroBanner,
   useDeleteHeroBanner,
+  HeroBanner,
 } from "@/hooks/useHeroBanners";
+import { useSiteSettings, useUpdateSiteSetting } from "@/hooks/useSiteSettings";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -24,324 +26,349 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  Image,
   GripVertical,
+  Layers,
+  Type,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Tables } from "@/integrations/supabase/types";
 
-type HeroBanner = Tables<"hero_banners">;
-
-interface BannerForm {
-  title: string;
-  subtitle: string;
-  image_url: string;
-  cta_text: string;
-  cta_link: string;
-  display_order: number;
-  is_active: boolean;
-}
-
-const emptyForm: BannerForm = {
-  title: "",
-  subtitle: "",
+const initialBannerForm = {
   image_url: "",
-  cta_text: "",
-  cta_link: "",
   display_order: 0,
   is_active: true,
+  title: "", // Not used for main display anymore, but kept for alt text
+  subtitle: "",
 };
 
-const AdminHeroBanners = () => {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<BannerForm>(emptyForm);
+export default function AdminHeroBanners() {
+  const { data: banners, isLoading: loadingBanners } = useHeroBanners();
+  const { data: settings, isLoading: loadingSettings } = useSiteSettings();
 
-  const { data: banners, isLoading } = useHeroBanners();
   const createBanner = useCreateHeroBanner();
   const updateBanner = useUpdateHeroBanner();
   const deleteBanner = useDeleteHeroBanner();
+  const updateSetting = useUpdateSiteSetting();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // --- STATE: Text Content ---
+  const [heroContent, setHeroContent] = useState({
+    hero_line_1: "",
+    hero_line_2: "",
+    hero_line_3: "",
+    hero_description: "",
+    hero_cta_text: "",
+    hero_cta_link: "",
+  });
 
-    if (!form.image_url) {
-      toast.error("Please upload a banner image");
-      return;
+  // --- STATE: Banner Dialog ---
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [bannerForm, setBannerForm] = useState(initialBannerForm);
+
+  // Load Settings
+  useEffect(() => {
+    if (settings) {
+      setHeroContent({
+        hero_line_1:
+          settings.find((s) => s.setting_key === "hero_line_1")
+            ?.setting_value || "",
+        hero_line_2:
+          settings.find((s) => s.setting_key === "hero_line_2")
+            ?.setting_value || "",
+        hero_line_3:
+          settings.find((s) => s.setting_key === "hero_line_3")
+            ?.setting_value || "",
+        hero_description:
+          settings.find((s) => s.setting_key === "hero_description")
+            ?.setting_value || "",
+        hero_cta_text:
+          settings.find((s) => s.setting_key === "hero_cta_text")
+            ?.setting_value || "",
+        hero_cta_link:
+          settings.find((s) => s.setting_key === "hero_cta_link")
+            ?.setting_value || "",
+      });
     }
+  }, [settings]);
 
+  // Save Text Content
+  const handleSaveContent = async () => {
+    try {
+      const keys = Object.keys(heroContent);
+      await Promise.all(
+        keys.map((key) => {
+          const settingObj = settings?.find((s) => s.setting_key === key);
+          return settingObj
+            ? updateSetting.mutateAsync({
+                id: settingObj.id,
+                setting_value: heroContent[key as keyof typeof heroContent],
+              })
+            : Promise.resolve();
+        }),
+      );
+      toast.success("Hero text updated");
+    } catch (e) {
+      toast.error("Failed to save text");
+    }
+  };
+
+  // Save Background Image
+  const handleSubmitBanner = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bannerForm.image_url) return toast.error("Image is required");
     try {
       if (editingId) {
-        await updateBanner.mutateAsync({ id: editingId, ...form });
-        toast.success("Banner updated");
+        await updateBanner.mutateAsync({ id: editingId, ...bannerForm });
+        toast.success("Background updated");
       } else {
-        await createBanner.mutateAsync(form);
-        toast.success("Banner created");
+        await createBanner.mutateAsync(bannerForm);
+        toast.success("Background added");
       }
-      setDialogOpen(false);
-      setForm(emptyForm);
-      setEditingId(null);
-    } catch (error) {
-      toast.error("Failed to save banner");
+      setIsDialogOpen(false);
+    } catch (err) {
+      toast.error("Failed to save");
     }
   };
 
-  const handleEdit = (banner: HeroBanner) => {
-    setForm({
-      title: banner.title || "",
-      subtitle: banner.subtitle || "",
-      image_url: banner.image_url,
-      cta_text: banner.cta_text || "",
-      cta_link: banner.cta_link || "",
-      display_order: banner.display_order,
-      is_active: banner.is_active,
-    });
-    setEditingId(banner.id);
-    setDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this banner?")) {
-      try {
-        await deleteBanner.mutateAsync(id);
-        toast.success("Banner deleted");
-      } catch (error) {
-        toast.error("Failed to delete banner");
-      }
-    }
-  };
-
-  const toggleActive = async (banner: HeroBanner) => {
-    try {
-      await updateBanner.mutateAsync({
-        id: banner.id,
-        is_active: !banner.is_active,
-      });
-      toast.success(`Banner ${banner.is_active ? "deactivated" : "activated"}`);
-    } catch (error) {
-      toast.error("Failed to update banner");
-    }
-  };
-
-  const openNewDialog = () => {
-    setForm(emptyForm);
+  const openNew = () => {
+    setBannerForm(initialBannerForm);
     setEditingId(null);
-    setDialogOpen(true);
+    setIsDialogOpen(true);
   };
+  const handleEdit = (b: HeroBanner) => {
+    setBannerForm({
+      title: b.title || "",
+      subtitle: b.subtitle || "",
+      image_url: b.image_url,
+      display_order: b.display_order,
+      is_active: b.is_active,
+    });
+    setEditingId(b.id);
+    setIsDialogOpen(true);
+  };
+
+  if (loadingBanners || loadingSettings)
+    return (
+      <AdminLayout title="Hero Section">
+        <Loader2 className="animate-spin" />
+      </AdminLayout>
+    );
 
   return (
-    <AdminLayout title="Hero Banners">
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-muted-foreground">
-          Manage homepage hero banners and carousel slides
-        </p>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="gold" onClick={openNewDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Banner
+    <AdminLayout title="Hero Section">
+      <div className="space-y-8 pb-10">
+        {/* --- 1. TEXT CONTENT EDITOR --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <Type className="w-5 h-5 text-accent" /> Hero Text & Overlay
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Title Line 1 (White)</Label>
+                <Input
+                  value={heroContent.hero_line_1}
+                  onChange={(e) =>
+                    setHeroContent({
+                      ...heroContent,
+                      hero_line_1: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Title Line 2 (Faded)</Label>
+                <Input
+                  value={heroContent.hero_line_2}
+                  onChange={(e) =>
+                    setHeroContent({
+                      ...heroContent,
+                      hero_line_2: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Title Line 3 (Colored)</Label>
+                <Input
+                  value={heroContent.hero_line_3}
+                  onChange={(e) =>
+                    setHeroContent({
+                      ...heroContent,
+                      hero_line_3: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={heroContent.hero_description}
+                onChange={(e) =>
+                  setHeroContent({
+                    ...heroContent,
+                    hero_description: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Button Text</Label>
+                <Input
+                  value={heroContent.hero_cta_text}
+                  onChange={(e) =>
+                    setHeroContent({
+                      ...heroContent,
+                      hero_cta_text: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Button Link</Label>
+                <Input
+                  value={heroContent.hero_cta_link}
+                  onChange={(e) =>
+                    setHeroContent({
+                      ...heroContent,
+                      hero_cta_link: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleSaveContent}
+              disabled={updateSetting.isPending}
+            >
+              {updateSetting.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}{" "}
+              Save Content
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          </CardContent>
+        </Card>
+
+        {/* --- 2. BACKGROUND SLIDESHOW --- */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex gap-2">
+              <Layers className="w-5 h-5 text-blue-500" /> Background Slideshow
+            </CardTitle>
+            <Button size="sm" onClick={openNew} className="gap-2">
+              <Plus className="w-4 h-4" /> Add Image
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {banners && banners.length > 0 ? (
+              <div className="grid gap-3">
+                {banners.map((banner) => (
+                  <div
+                    key={banner.id}
+                    className="flex items-center gap-4 p-3 border rounded-lg bg-slate-50/50"
+                  >
+                    <div className="w-24 h-16 bg-slate-200 rounded overflow-hidden flex-shrink-0 relative">
+                      <img
+                        src={banner.image_url}
+                        className={`w-full h-full object-cover ${!banner.is_active && "opacity-50 grayscale"}`}
+                      />
+                    </div>
+                    <div className="flex-1 flex items-center gap-2">
+                      <GripVertical className="w-4 h-4 text-slate-300" />
+                      <span className="text-xs font-mono text-muted-foreground">
+                        Order: {banner.display_order}
+                      </span>
+                      {!banner.is_active && (
+                        <span className="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(banner)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500"
+                        onClick={() => {
+                          if (confirm("Delete?"))
+                            deleteBanner.mutate(banner.id);
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No background images yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Dialog for Image Upload */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {editingId ? "Edit Banner" : "Add Banner"}
+                {editingId ? "Edit Image" : "Add Background Image"}
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmitBanner} className="space-y-4 pt-4">
               <ImageUpload
-                value={form.image_url}
-                onChange={(url) => setForm({ ...form, image_url: url })}
+                value={bannerForm.image_url}
+                onChange={(url) =>
+                  setBannerForm({ ...bannerForm, image_url: url })
+                }
                 folder="banners"
-                label="Banner Image *"
+                label="Background Image *"
               />
-
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="Banner headline..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="subtitle">Subtitle</Label>
-                <Input
-                  id="subtitle"
-                  value={form.subtitle}
-                  onChange={(e) =>
-                    setForm({ ...form, subtitle: e.target.value })
-                  }
-                  placeholder="Supporting text..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cta_text">Button Text</Label>
-                  <Input
-                    id="cta_text"
-                    value={form.cta_text}
-                    onChange={(e) =>
-                      setForm({ ...form, cta_text: e.target.value })
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={bannerForm.is_active}
+                    onCheckedChange={(c) =>
+                      setBannerForm({ ...bannerForm, is_active: c })
                     }
-                    placeholder="Learn More"
                   />
+                  <Label>Active</Label>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cta_link">Button Link</Label>
-                  <Input
-                    id="cta_link"
-                    value={form.cta_link}
-                    onChange={(e) =>
-                      setForm({ ...form, cta_link: e.target.value })
-                    }
-                    placeholder="/about"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="display_order">Display Order</Label>
                 <Input
-                  id="display_order"
                   type="number"
-                  value={form.display_order}
+                  className="w-24"
+                  placeholder="Order"
+                  value={bannerForm.display_order}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
+                    setBannerForm({
+                      ...bannerForm,
                       display_order: parseInt(e.target.value) || 0,
                     })
                   }
                 />
               </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="is_active"
-                  checked={form.is_active}
-                  onCheckedChange={(checked) =>
-                    setForm({ ...form, is_active: checked })
-                  }
-                />
-                <Label htmlFor="is_active">Active</Label>
-              </div>
-
               <Button
                 type="submit"
                 className="w-full"
                 disabled={createBanner.isPending || updateBanner.isPending}
               >
-                {(createBanner.isPending || updateBanner.isPending) && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                {editingId ? "Update" : "Create"} Banner
+                Save Image
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
-
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        </div>
-      ) : banners && banners.length > 0 ? (
-        <div className="grid gap-4">
-          {banners.map((banner) => (
-            <Card
-              key={banner.id}
-              className={`overflow-hidden ${!banner.is_active ? "opacity-60" : ""}`}
-            >
-              <CardContent className="p-0">
-                <div className="flex items-stretch">
-                  {/* Banner Image Preview */}
-                  <div className="w-48 h-32 flex-shrink-0">
-                    <img
-                      src={banner.image_url}
-                      alt={banner.title || "Banner"}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Banner Info */}
-                  <div className="flex-1 p-4 flex flex-col justify-center">
-                    <div className="flex items-center gap-2 mb-1">
-                      <GripVertical className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        Order: {banner.display_order}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs ${
-                          banner.is_active
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {banner.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <h3 className="font-semibold text-foreground">
-                      {banner.title || "(No title)"}
-                    </h3>
-                    {banner.subtitle && (
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        {banner.subtitle}
-                      </p>
-                    )}
-                    {banner.cta_text && (
-                      <p className="text-xs text-accent mt-1">
-                        Button: {banner.cta_text} → {banner.cta_link || "#"}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 p-4 border-l border-border">
-                    <Switch
-                      checked={banner.is_active}
-                      onCheckedChange={() => toggleActive(banner)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(banner)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(banner.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-card rounded-lg border border-border">
-          <Image className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            No banners yet
-          </h3>
-          <p className="text-muted-foreground mb-4">
-            Add your first hero banner
-          </p>
-          <Button variant="gold" onClick={openNewDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Banner
-          </Button>
-        </div>
-      )}
     </AdminLayout>
   );
-};
-
-export default AdminHeroBanners;
+}

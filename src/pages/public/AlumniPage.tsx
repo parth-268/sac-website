@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { useAlumni } from "@/hooks/useAlumni";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHero } from "@/components/layout/PageHero";
+import { useAlumniMembers } from "@/hooks/useTeamData"; // Updated Hook
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,24 +11,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Search, Linkedin, GraduationCap, Users } from "lucide-react";
+import { Search, Linkedin, Loader2, Filter } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 const AlumniPage = () => {
-  const { data: alumni, isLoading } = useAlumni();
+  // 1. Fetch Data using new consolidated hook
+  const { data: alumni, isLoading } = useAlumniMembers();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [batchFilter, setBatchFilter] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState(false); // Mobile toggle
 
-  // Get unique batch years
+  // 2. Extract Batches Dynamically
   const batchYears = useMemo(() => {
     if (!alumni) return [];
+    // Get unique years and sort descending (newest first)
     const years = [...new Set(alumni.map((a) => a.batch_year).filter(Boolean))];
     return years.sort().reverse();
   }, [alumni]);
 
-  // Filter alumni based on search and batch
+  // 3. Filter Logic
   const filteredAlumni = useMemo(() => {
     if (!alumni) return [];
     return alumni.filter((person) => {
@@ -41,7 +45,7 @@ const AlumniPage = () => {
     });
   }, [alumni, searchQuery, batchFilter]);
 
-  // Group by batch year
+  // 4. Grouping Logic (By Batch)
   const groupedAlumni = useMemo(() => {
     const groups: Record<string, typeof filteredAlumni> = {};
     filteredAlumni.forEach((person) => {
@@ -49,137 +53,144 @@ const AlumniPage = () => {
       if (!groups[year]) groups[year] = [];
       groups[year].push(person);
     });
+    // Sort groups by year descending
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
   }, [filteredAlumni]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="bg-primary pt-24 pb-16">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="font-heading text-4xl md:text-5xl font-bold text-primary-foreground mb-4">
-            Alumni Directory
-          </h1>
-          <p className="text-primary-foreground/80 font-body text-lg max-w-2xl mx-auto">
-            Connect with past SAC members who have shaped the legacy of IIM
-            Sambalpur
-          </p>
-        </div>
-      </section>
+      <PageHero
+        title="Alumni"
+        highlight="Network"
+        description="Celebrating the legacy of our past council members."
+        pattern="waves"
+      />
 
-      {/* Search and Filter */}
-      <section className="py-8 border-b">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+      <section className="py-4 md:py-8 flex-1">
+        <div className="container-wide mx-auto px-6">
+          {/* --- Controls Bar --- */}
+          <div className="flex flex-col md:flex-row gap-4 mb-10 items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm sticky top-24 z-30">
+            {/* Search */}
             <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name or role..."
+                placeholder="Search alumni by name or role..."
+                className="pl-9 bg-slate-50 border-slate-200 focus:bg-white transition-all"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
               />
             </div>
-            <div className="flex items-center gap-4">
+
+            {/* Mobile Filter Toggle */}
+            <Button
+              variant="outline"
+              className="md:hidden w-full flex items-center gap-2"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-4 h-4" /> Filter by Batch
+            </Button>
+
+            {/* Batch Filter (Desktop + Mobile) */}
+            <div
+              className={`${showFilters ? "block" : "hidden"} md:block w-full md:w-48`}
+            >
               <Select value={batchFilter} onValueChange={setBatchFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by batch" />
+                <SelectTrigger className="bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Filter by Batch" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Batches</SelectItem>
                   {batchYears.map((year) => (
-                    <SelectItem key={year} value={year as string}>
-                      Batch {year}
+                    <SelectItem key={year as string} value={year as string}>
+                      Batch of {year}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <div className="text-sm text-muted-foreground">
-                {filteredAlumni.length} alumni found
-              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Alumni Grid */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          {isLoading ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {[...Array(8)].map((_, i) => (
-                <Skeleton key={i} className="h-48 rounded-xl" />
-              ))}
-            </div>
-          ) : groupedAlumni.length > 0 ? (
-            <div className="space-y-12">
-              {groupedAlumni.map(([year, members]) => (
-                <div key={year}>
-                  <div className="flex items-center gap-3 mb-6">
-                    <GraduationCap className="h-6 w-6 text-accent" />
-                    <h2 className="font-heading text-2xl font-bold text-foreground">
-                      Batch of {year}
-                    </h2>
-                    <Badge variant="secondary">{members.length} members</Badge>
+          {/* --- Results Area --- */}
+          <div className="space-y-12">
+            {isLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              </div>
+            ) : groupedAlumni.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p>No alumni found matching your criteria.</p>
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setBatchFilter("all");
+                  }}
+                  className="mt-2 text-accent"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            ) : (
+              groupedAlumni.map(([batch, people]) => (
+                <div key={batch} className="scroll-mt-28">
+                  {/* Batch Header */}
+                  <div className="flex items-center gap-4 mb-6">
+                    <h3 className="text-2xl font-heading font-bold text-slate-800">
+                      Batch of {batch}
+                    </h3>
+                    <div className="h-[1px] flex-1 bg-slate-100" />
+                    <span className="text-xs font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                      {people.length} Members
+                    </span>
                   </div>
-                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {members.map((person) => (
-                      <Card
+
+                  {/* Members Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {people.map((person) => (
+                      <div
                         key={person.id}
-                        className="group hover:shadow-elevated transition-all"
+                        className="flex items-start gap-3 p-4 rounded-xl border border-slate-100 bg-white hover:border-accent/30 hover:shadow-md transition-all duration-300 group"
                       >
-                        <CardContent className="p-6">
-                          <div className="flex flex-col items-center text-center">
-                            <Avatar className="h-20 w-20 mb-4 ring-2 ring-accent/20">
-                              <AvatarImage
-                                src={person.image_url || undefined}
-                                alt={person.name}
-                              />
-                              <AvatarFallback className="bg-accent/10 text-accent font-heading text-xl">
-                                {person.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")
-                                  .slice(0, 2)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <h3 className="font-heading font-semibold text-foreground">
-                              {person.name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground font-body mt-1">
-                              {person.designation}
-                            </p>
-                            {person.linkedin_url && (
-                              <a
-                                href={person.linkedin_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-4 inline-flex items-center gap-2 text-sm text-accent hover:underline"
-                              >
-                                <Linkedin className="h-4 w-4" />
-                                Connect
-                              </a>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
+                        <Avatar className="h-12 w-12 border border-slate-100 bg-slate-50 mt-1">
+                          <AvatarImage
+                            src={person.image_url ?? undefined}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="text-xs font-bold text-slate-400">
+                            {person.name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-sm text-slate-900 truncate group-hover:text-accent transition-colors">
+                            {person.name}
+                          </h4>
+                          <p className="text-[10px] uppercase font-bold text-slate-500 truncate mb-2">
+                            {person.designation}
+                          </p>
+
+                          {/* LinkedIn Display */}
+                          {person.linkedin_url && (
+                            <a
+                              href={person.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[10px] font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                            >
+                              <Linkedin className="w-3 h-3" />
+                              Connect
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <Users className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground font-body">
-                {searchQuery || batchFilter !== "all"
-                  ? "No alumni found matching your criteria"
-                  : "No alumni in the directory yet"}
-              </p>
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
       </section>
 

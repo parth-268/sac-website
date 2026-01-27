@@ -1,8 +1,36 @@
-import { Mail, MapPin, Phone, Send, Loader2 } from "lucide-react";
+import { Mail, MapPin, Send, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { useContactInfo, useSubmitContactForm } from "@/hooks/useContactInfo";
+// Keep for Submission
+import { useSubmitContactForm } from "@/hooks/useContactInfo";
+// Use for Reading Settings
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+const FloatingInput = ({ label, id, className, textarea, ...props }: any) => {
+  const Component = textarea ? "textarea" : "input";
+  return (
+    <div className="relative group">
+      <Component
+        id={id}
+        placeholder=" "
+        className={cn(
+          "peer w-full px-5 py-4 bg-white/[0.03] border border-white/10 rounded-xl outline-none text-white placeholder-transparent focus:border-accent focus:ring-1 focus:ring-accent/20 focus:bg-white/[0.05] transition-all duration-300 pt-7 pb-2 resize-none",
+          className,
+        )}
+        {...props}
+      />
+      <label
+        htmlFor={id}
+        className="absolute left-5 top-4 text-white/40 text-[10px] font-bold uppercase tracking-widest transition-all peer-placeholder-shown:top-4 peer-placeholder-shown:text-sm peer-placeholder-shown:text-white/50 peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:top-2 peer-focus:text-[9px] peer-focus:text-accent peer-focus:tracking-widest peer-focus:uppercase pointer-events-none"
+      >
+        {label}
+      </label>
+    </div>
+  );
+};
 
 export const Contact = () => {
   const [formData, setFormData] = useState({
@@ -12,222 +40,186 @@ export const Contact = () => {
     message: "",
   });
 
-  const { data: contactInfo, isLoading } = useContactInfo();
+  const { data: settings } = useSiteSettings();
   const submitContact = useSubmitContactForm();
+
+  // Helper with fallback
+  const getVal = (key: string, fallback: string) =>
+    settings?.find((s) => s.setting_key === key)?.setting_value || fallback;
+
+  // DYNAMIC VALUES
+  const email = getVal("contact_email", "sac@iimsambalpur.ac.in");
+  const address = getVal("contact_address", "IIM Sambalpur, Odisha");
+  const mapUrl = getVal("contact_map_url", "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       await submitContact.mutateAsync(formData);
       toast.success("Message sent successfully!");
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
-      toast.error("Failed to send message. Please try again.");
+      toast.error("Failed to send message.");
     }
   };
 
   return (
-    <section id="contact" className="section-padding bg-background">
-      <div className="container-wide mx-auto">
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="inline-block text-accent font-semibold text-sm tracking-wider uppercase mb-4 font-body">
-            Get in Touch
-          </span>
-          <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-6">
-            Contact Us
-          </h2>
-          <p className="text-muted-foreground text-lg font-body leading-relaxed">
-            Have questions or suggestions? We'd love to hear from you. Reach out
-            to the Student Affairs Council.
-          </p>
-        </div>
+    <section
+      id="contact"
+      className="relative bg-[#0a0f1d] pt-32 pb-24 overflow-hidden"
+    >
+      <div className="absolute top-0 left-0 right-0 h-16 md:h-24 overflow-hidden pointer-events-none">
+        <svg
+          viewBox="0 0 1440 100"
+          className="absolute bottom-0 w-full h-full text-slate-50 fill-current"
+          preserveAspectRatio="none"
+        >
+          <path d="M0,0 C480,100 960,100 1440,0 L1440,0 L0,0 Z" />
+        </svg>
+      </div>
 
-        <div className="grid lg:grid-cols-2 gap-12">
-          {/* Contact Info */}
-          <div className="space-y-8">
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-accent" />
-              </div>
-            ) : (
-              <>
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="h-6 w-6 text-accent" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading text-lg font-semibold text-foreground mb-1">
-                      Address
-                    </h3>
-                    <p className="text-muted-foreground font-body whitespace-pre-line">
-                      {contactInfo?.address ||
-                        "Indian Institute of Management Sambalpur\nJyoti Vihar, Burla, Sambalpur\nOdisha - 768019"}
-                    </p>
-                  </div>
-                </div>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[20%] right-[-10%] w-[600px] h-[600px] bg-accent/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-900/10 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-100 contrast-150" />
+      </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <Mail className="h-6 w-6 text-accent" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading text-lg font-semibold text-foreground mb-1">
-                      Email
-                    </h3>
-                    <a
-                      href={`mailto:${contactInfo?.email || "sac@iimsambalpur.ac.in"}`}
-                      className="text-muted-foreground hover:text-accent font-body transition-colors"
-                    >
-                      {contactInfo?.email || "sac@iimsambalpur.ac.in"}
-                    </a>
-                  </div>
-                </div>
-
-                {contactInfo?.phone && (
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                      <Phone className="h-6 w-6 text-accent" />
-                    </div>
-                    <div>
-                      <h3 className="font-heading text-lg font-semibold text-foreground mb-1">
-                        Phone
-                      </h3>
-                      <p className="text-muted-foreground font-body">
-                        {contactInfo.phone}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Social Links */}
-            <div className="pt-4">
-              <h3 className="font-heading text-lg font-semibold text-foreground mb-4">
-                Follow Us
-              </h3>
-              <div className="flex gap-4">
-                {["Instagram", "LinkedIn", "Twitter", "Facebook"].map(
-                  (social) => (
-                    <a
-                      key={social}
-                      href="#"
-                      className="px-4 py-2 bg-secondary rounded-lg text-sm font-body text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                    >
-                      {social}
-                    </a>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Form */}
-          <form
-            onSubmit={handleSubmit}
-            className="bg-card rounded-2xl p-8 shadow-card"
+      <div className="container-wide mx-auto px-4 sm:px-6 relative z-10">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+          {/* Info Side */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className="space-y-10 pt-4"
           >
+            <div>
+              <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_#eab308]"></span>
+                <span className="text-white/90 font-bold tracking-widest text-[10px] uppercase">
+                  Contact
+                </span>
+              </div>
+              <h2 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-[1.1]">
+                Let's Start a <br />{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500">
+                  Conversation.
+                </span>
+              </h2>
+              <p className="text-white/60 text-lg leading-relaxed max-w-md">
+                Have questions about student affairs, events, or policies? We
+                are here to listen and help.
+              </p>
+            </div>
+
             <div className="space-y-6">
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-foreground mb-2 font-body"
-                >
-                  Your Name
-                </label>
-                <input
-                  type="text"
+              <ContactCard
+                icon={Mail}
+                title="Email Us"
+                value={email}
+                href={`mailto:${email}`}
+              />
+              {/* Dynamic Map Link */}
+              <ContactCard
+                icon={MapPin}
+                title="Visit Campus"
+                value={address}
+                href={mapUrl}
+              />
+            </div>
+          </motion.div>
+
+          {/* Form Side */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="bg-white/[0.02] backdrop-blur-sm border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl relative"
+          >
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="grid grid-cols-2 gap-5">
+                <FloatingInput
                   id="name"
+                  label="Name"
                   value={formData.name}
-                  onChange={(e) =>
+                  onChange={(e: any) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  className="w-full px-4 py-3 rounded-lg bg-secondary border border-border focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all font-body text-foreground"
-                  placeholder="Enter your name"
                   required
                 />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-foreground mb-2 font-body"
-                >
-                  Email Address
-                </label>
-                <input
-                  type="email"
+                <FloatingInput
                   id="email"
+                  label="Email"
+                  type="email"
                   value={formData.email}
-                  onChange={(e) =>
+                  onChange={(e: any) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
-                  className="w-full px-4 py-3 rounded-lg bg-secondary border border-border focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all font-body text-foreground"
-                  placeholder="Enter your email"
                   required
                 />
               </div>
-
-              <div>
-                <label
-                  htmlFor="subject"
-                  className="block text-sm font-medium text-foreground mb-2 font-body"
-                >
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  id="subject"
-                  value={formData.subject}
-                  onChange={(e) =>
-                    setFormData({ ...formData, subject: e.target.value })
-                  }
-                  className="w-full px-4 py-3 rounded-lg bg-secondary border border-border focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all font-body text-foreground"
-                  placeholder="Enter subject"
-                  required
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="message"
-                  className="block text-sm font-medium text-foreground mb-2 font-body"
-                >
-                  Message
-                </label>
-                <textarea
-                  id="message"
-                  value={formData.message}
-                  onChange={(e) =>
-                    setFormData({ ...formData, message: e.target.value })
-                  }
-                  rows={5}
-                  className="w-full px-4 py-3 rounded-lg bg-secondary border border-border focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all font-body text-foreground resize-none"
-                  placeholder="Your message..."
-                  required
-                />
-              </div>
+              <FloatingInput
+                id="subject"
+                label="Subject"
+                value={formData.subject}
+                onChange={(e: any) =>
+                  setFormData({ ...formData, subject: e.target.value })
+                }
+                required
+              />
+              <FloatingInput
+                id="message"
+                label="How can we help?"
+                textarea
+                rows={4}
+                value={formData.message}
+                onChange={(e: any) =>
+                  setFormData({ ...formData, message: e.target.value })
+                }
+                required
+              />
 
               <Button
                 type="submit"
-                variant="gold"
-                size="xl"
-                className="w-full"
+                size="lg"
+                className="w-full h-12 bg-accent text-black hover:bg-white hover:text-black font-bold text-sm tracking-wide"
                 disabled={submitContact.isPending}
               >
                 {submitContact.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="animate-spin mr-2 h-4 w-4" />
                 ) : (
-                  <Send className="h-4 w-4 mr-2" />
+                  <Send className="w-4 h-4 mr-2" />
                 )}
                 Send Message
               </Button>
-            </div>
-          </form>
+            </form>
+          </motion.div>
         </div>
       </div>
     </section>
+  );
+};
+
+const ContactCard = ({ icon: Icon, title, value, href }: any) => {
+  // If href is empty (e.g. no map url), it renders as a div, otherwise as a link
+  const Wrapper = href ? "a" : "div";
+  const props = href ? { href, target: "_blank", rel: "noreferrer" } : {};
+
+  return (
+    <Wrapper
+      {...props}
+      className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all group cursor-pointer block"
+    >
+      <div className="p-3 rounded-full bg-accent/10 text-accent group-hover:scale-110 transition-transform duration-300">
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <h4 className="font-bold text-white text-sm">{title}</h4>
+        <p className="text-white/60 text-sm whitespace-pre-wrap">{value}</p>
+      </div>
+      {href && (
+        <ArrowRight className="ml-auto w-4 h-4 text-white/20 group-hover:text-accent transition-colors" />
+      )}
+    </Wrapper>
   );
 };

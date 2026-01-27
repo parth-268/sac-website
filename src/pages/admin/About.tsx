@@ -3,28 +3,26 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useAboutContent,
   useUpsertAboutContent,
-  useAboutStats,
-  useUpsertAboutStats,
 } from "@/hooks/useAboutContent";
+import { useSiteSettings, useUpdateSiteSetting } from "@/hooks/useSiteSettings"; // Import Settings Hook
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Loader2, Save } from "lucide-react";
+import { Loader2, Save, Users, Target } from "lucide-react";
 import { toast } from "sonner";
-
-interface StatItem {
-  label: string;
-  value: string;
-  display_order: number;
-}
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const AdminAbout = () => {
+  // 1. Hooks for Mission/Vision
   const { data: aboutContent, isLoading: loadingContent } = useAboutContent();
-  const { data: aboutStats, isLoading: loadingStats } = useAboutStats();
   const upsertContent = useUpsertAboutContent();
-  const upsertStats = useUpsertAboutStats();
 
+  // 2. Hooks for Batch Stats (Site Settings)
+  const { data: settings, isLoading: loadingSettings } = useSiteSettings();
+  const updateSetting = useUpdateSiteSetting();
+
+  // --- States ---
   const [content, setContent] = useState({
     title: "About SAC",
     description: "",
@@ -32,8 +30,16 @@ const AdminAbout = () => {
     vision: "",
   });
 
-  const [stats, setStats] = useState<StatItem[]>([]);
+  const [batchData, setBatchData] = useState({
+    batch_1_label: "",
+    batch_1_male: "",
+    batch_1_female: "",
+    batch_2_label: "",
+    batch_2_male: "",
+    batch_2_female: "",
+  });
 
+  // --- Load Data ---
   useEffect(() => {
     if (aboutContent) {
       setContent({
@@ -46,17 +52,31 @@ const AdminAbout = () => {
   }, [aboutContent]);
 
   useEffect(() => {
-    if (aboutStats) {
-      setStats(
-        aboutStats.map((s) => ({
-          label: s.label,
-          value: s.value,
-          display_order: s.display_order,
-        })),
-      );
+    if (settings) {
+      setBatchData({
+        batch_1_label:
+          settings.find((s) => s.setting_key === "batch_1_label")
+            ?.setting_value || "",
+        batch_1_male:
+          settings.find((s) => s.setting_key === "batch_1_male")
+            ?.setting_value || "0",
+        batch_1_female:
+          settings.find((s) => s.setting_key === "batch_1_female")
+            ?.setting_value || "0",
+        batch_2_label:
+          settings.find((s) => s.setting_key === "batch_2_label")
+            ?.setting_value || "",
+        batch_2_male:
+          settings.find((s) => s.setting_key === "batch_2_male")
+            ?.setting_value || "0",
+        batch_2_female:
+          settings.find((s) => s.setting_key === "batch_2_female")
+            ?.setting_value || "0",
+      });
     }
-  }, [aboutStats]);
+  }, [settings]);
 
+  // --- Handlers ---
   const handleSaveContent = async () => {
     try {
       await upsertContent.mutateAsync({
@@ -65,186 +85,220 @@ const AdminAbout = () => {
         mission: content.mission || null,
         vision: content.vision || null,
       });
-      toast.success("About content saved");
+      toast.success("Mission & Vision saved");
     } catch (error) {
       toast.error("Failed to save content");
     }
   };
 
-  const handleSaveStats = async () => {
+  const handleSaveBatchData = async () => {
     try {
-      await upsertStats.mutateAsync(
-        stats.map((s, i) => ({
-          label: s.label,
-          value: s.value,
-          display_order: i,
-        })),
+      const keys = Object.keys(batchData);
+      await Promise.all(
+        keys.map((key) => {
+          const settingObj = settings?.find((s) => s.setting_key === key);
+          if (settingObj) {
+            return updateSetting.mutateAsync({
+              id: settingObj.id,
+              setting_value: batchData[key as keyof typeof batchData],
+            });
+          }
+          return Promise.resolve();
+        }),
       );
-      toast.success("Stats saved");
+      toast.success("Batch stats saved");
     } catch (error) {
       toast.error("Failed to save stats");
     }
   };
 
-  const addStat = () => {
-    setStats([...stats, { label: "", value: "", display_order: stats.length }]);
-  };
-
-  const removeStat = (index: number) => {
-    setStats(stats.filter((_, i) => i !== index));
-  };
-
-  const updateStat = (index: number, field: keyof StatItem, value: string) => {
-    const updated = [...stats];
-    updated[index] = { ...updated[index], [field]: value };
-    setStats(updated);
-  };
-
-  const isLoading = loadingContent || loadingStats;
+  if (loadingContent || loadingSettings)
+    return (
+      <AdminLayout title="About Section">
+        <Loader2 className="animate-spin" />
+      </AdminLayout>
+    );
 
   return (
     <AdminLayout title="About Section">
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        </div>
-      ) : (
-        <div className="space-y-8">
-          {/* Content Section */}
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h2 className="font-heading text-lg font-semibold mb-4">
-              About Content
-            </h2>
-            <div className="space-y-4">
+      <div className="max-w-4xl space-y-8 pb-10">
+        {/* --- SECTION 1: MISSION & VISION --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <Target className="w-5 h-5 text-accent" /> Strategic Content
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Section Title</Label>
+              <Input
+                value={content.title}
+                onChange={(e) =>
+                  setContent({ ...content, title: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Main Description</Label>
+              <Textarea
+                value={content.description}
+                onChange={(e) =>
+                  setContent({ ...content, description: e.target.value })
+                }
+                rows={3}
+              />
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="title">Section Title</Label>
-                <Input
-                  id="title"
-                  value={content.title}
-                  onChange={(e) =>
-                    setContent({ ...content, title: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
+                <Label className="text-accent">Our Mission</Label>
                 <Textarea
-                  id="description"
-                  value={content.description}
-                  onChange={(e) =>
-                    setContent({ ...content, description: e.target.value })
-                  }
-                  rows={4}
-                  placeholder="Main description about SAC..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mission">Mission Statement</Label>
-                <Textarea
-                  id="mission"
+                  className="min-h-[120px]"
                   value={content.mission}
                   onChange={(e) =>
                     setContent({ ...content, mission: e.target.value })
                   }
-                  rows={3}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vision">Vision Statement</Label>
+                <Label className="text-blue-500">Our Vision</Label>
                 <Textarea
-                  id="vision"
+                  className="min-h-[120px]"
                   value={content.vision}
                   onChange={(e) =>
                     setContent({ ...content, vision: e.target.value })
                   }
-                  rows={3}
                 />
               </div>
-              <Button
-                variant="gold"
-                onClick={handleSaveContent}
-                disabled={upsertContent.isPending}
-              >
-                {upsertContent.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                <Save className="h-4 w-4 mr-2" />
-                Save Content
-              </Button>
             </div>
-          </div>
+            <Button
+              onClick={handleSaveContent}
+              disabled={upsertContent.isPending}
+            >
+              {upsertContent.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}{" "}
+              Save Content
+            </Button>
+          </CardContent>
+        </Card>
 
-          {/* Stats Section */}
-          <div className="bg-card rounded-lg border border-border p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-heading text-lg font-semibold">Statistics</h2>
-              <Button variant="outline" size="sm" onClick={addStat}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Stat
-              </Button>
-            </div>
-
-            {stats.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                No statistics added yet. Click "Add Stat" to create one.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {stats.map((stat, index) => (
-                  <div
-                    key={index}
-                    className="flex gap-4 items-start p-4 bg-secondary/50 rounded-lg"
-                  >
-                    <div className="flex-1 grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Value (e.g., 500+)</Label>
-                        <Input
-                          value={stat.value}
-                          onChange={(e) =>
-                            updateStat(index, "value", e.target.value)
-                          }
-                          placeholder="500+"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Label (e.g., Students)</Label>
-                        <Input
-                          value={stat.label}
-                          onChange={(e) =>
-                            updateStat(index, "label", e.target.value)
-                          }
-                          placeholder="Students"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeStat(index)}
-                      className="text-destructive hover:text-destructive mt-6"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+        {/* --- SECTION 2: BATCH PROFILE --- */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex gap-2">
+              <Users className="w-5 h-5 text-green-600" /> Batch Profile Data
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Batch 1 */}
+            <div className="p-4 border rounded-lg bg-slate-50/50">
+              <h3 className="font-bold text-sm mb-3 text-slate-700">
+                Senior Batch (Batch 1)
+              </h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Batch Name</Label>
+                  <Input
+                    value={batchData.batch_1_label}
+                    onChange={(e) =>
+                      setBatchData({
+                        ...batchData,
+                        batch_1_label: e.target.value,
+                      })
+                    }
+                    placeholder="MBA 2024-26"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Male Count</Label>
+                  <Input
+                    type="number"
+                    value={batchData.batch_1_male}
+                    onChange={(e) =>
+                      setBatchData({
+                        ...batchData,
+                        batch_1_male: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Female Count</Label>
+                  <Input
+                    type="number"
+                    value={batchData.batch_1_female}
+                    onChange={(e) =>
+                      setBatchData({
+                        ...batchData,
+                        batch_1_female: e.target.value,
+                      })
+                    }
+                  />
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Batch 2 */}
+            <div className="p-4 border rounded-lg bg-slate-50/50">
+              <h3 className="font-bold text-sm mb-3 text-slate-700">
+                Junior Batch (Batch 2)
+              </h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Batch Name</Label>
+                  <Input
+                    value={batchData.batch_2_label}
+                    onChange={(e) =>
+                      setBatchData({
+                        ...batchData,
+                        batch_2_label: e.target.value,
+                      })
+                    }
+                    placeholder="MBA 2025-27"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Male Count</Label>
+                  <Input
+                    type="number"
+                    value={batchData.batch_2_male}
+                    onChange={(e) =>
+                      setBatchData({
+                        ...batchData,
+                        batch_2_male: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Female Count</Label>
+                  <Input
+                    type="number"
+                    value={batchData.batch_2_female}
+                    onChange={(e) =>
+                      setBatchData({
+                        ...batchData,
+                        batch_2_female: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
 
             <Button
-              variant="gold"
-              onClick={handleSaveStats}
-              disabled={upsertStats.isPending}
-              className="mt-4"
+              onClick={handleSaveBatchData}
+              disabled={updateSetting.isPending}
             >
-              {upsertStats.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              <Save className="h-4 w-4 mr-2" />
+              {updateSetting.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}{" "}
               Save Statistics
             </Button>
-          </div>
-        </div>
-      )}
+          </CardContent>
+        </Card>
+      </div>
     </AdminLayout>
   );
 };

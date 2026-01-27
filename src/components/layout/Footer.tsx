@@ -1,135 +1,222 @@
 import { Link } from "react-router-dom";
-import { Settings } from "lucide-react";
+import {
+  Settings,
+  Facebook,
+  Twitter,
+  Instagram,
+  Linkedin,
+  Heart,
+  ArrowUpRight,
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 export const Footer = () => {
   const currentYear = new Date().getFullYear();
   const { user, isEditor } = useAuth();
 
+  // 1. FETCH DATA
+  const { data: settings } = useSiteSettings();
+
+  // 2. HELPER
+  const getVal = (key: string, fallback: string) =>
+    settings?.find((s) => s.setting_key === key)?.setting_value || fallback;
+
+  // 3. DYNAMIC VALUES
+  const copyrightText = getVal(
+    "copyright_text",
+    `© ${currentYear} SAC IIM Sambalpur. All rights reserved.`,
+  );
+
+  // Fetch Both Logos
+  const sacLogoUrl = getVal("sac_logo_url", "");
+  const collegeLogoUrl = getVal("college_logo_url", "");
+
+  const socialLinks = [
+    {
+      icon: Instagram,
+      href: getVal("social_instagram", "#"),
+      label: "Instagram",
+    },
+    { icon: Linkedin, href: getVal("social_linkedin", "#"), label: "LinkedIn" },
+    { icon: Twitter, href: getVal("social_twitter", "#"), label: "Twitter" },
+    { icon: Facebook, href: getVal("social_facebook", "#"), label: "Facebook" },
+  ];
+
+  const quickLinks = [
+    { label: "About SAC", href: "#about" },
+    { label: "Leadership Team", href: "#team" },
+    { label: "Events Calendar", href: "#events" },
+    { label: "Contact Us", href: "#contact" },
+  ];
+
+  const resourceLinks = [
+    { label: "Clubs & Committees", to: "/clubs" },
+    { label: "Photo Gallery", to: "/gallery" },
+    { label: "News & Updates", to: "/news" },
+    { label: "Student Portal", to: "/login" },
+  ];
+
   return (
-    <footer className="bg-foreground py-12">
-      <div className="container-wide mx-auto px-4 md:px-8">
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
-          {/* Logo & Description */}
-          <div>
-            <div className="mb-4">
-              <div className="font-heading font-bold text-2xl text-background">
-                SAC
-              </div>
-              <div className="text-xs font-body text-background/60">
-                IIM Sambalpur
-              </div>
+    <footer className="bg-[#0a0f1d] pt-8 pb-6 relative overflow-hidden">
+      {/* Watermark */}
+      <div
+        className="absolute -bottom-6 -right-6 md:-right-10 text-[12rem] md:text-[24rem] font-black font-heading leading-none text-transparent pointer-events-none select-none z-0"
+        style={{ WebkitTextStroke: "1px rgba(255, 255, 255, 0.08)" }}
+      >
+        SAC
+      </div>
+
+      {/* Top Border */}
+      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+      {/* Background Ambience */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute bottom-[-100px] left-[-100px] w-[400px] h-[400px] bg-accent/5 rounded-full blur-[100px] opacity-40" />
+      </div>
+
+      <div className="container-wide mx-auto px-6 relative z-10">
+        <div className="grid md:grid-cols-12 gap-8 lg:gap-10 mb-4">
+          {/* --- BRAND COLUMN (Logos) --- */}
+          <div className="md:col-span-4 lg:col-span-5 space-y-5">
+            {/* Logo Row */}
+            <div className="flex items-center gap-4">
+              {sacLogoUrl || collegeLogoUrl ? (
+                <>
+                  {/* IIM Logo */}
+                  {collegeLogoUrl && (
+                    <img
+                      src={collegeLogoUrl}
+                      alt="IIM Sambalpur"
+                      className="h-12 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
+                    />
+                  )}
+
+                  {/* Divider (Only if both exist) */}
+                  {collegeLogoUrl && sacLogoUrl && (
+                    <div className="h-8 w-[1px] bg-white/10" />
+                  )}
+
+                  {/* SAC Logo */}
+                  {sacLogoUrl && (
+                    <img
+                      src={sacLogoUrl}
+                      alt="SAC Logo"
+                      className="h-10 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
+                    />
+                  )}
+                </>
+              ) : (
+                // Fallback "S" Icon if no logos uploaded
+                <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                  S
+                </div>
+              )}
             </div>
-            <p className="text-background/70 text-sm font-body leading-relaxed">
-              Student Affairs Council - The apex student body representing and
-              serving the student community of IIM Sambalpur.
-            </p>
+
+            {/* Text Content */}
+            <div>
+              <h3 className="font-heading text-sm font-bold text-white leading-none">
+                Student Affairs Council
+              </h3>
+              <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] mt-1">
+                IIM Sambalpur
+              </p>
+              <p className="text-slate-400 text-xs leading-relaxed max-w-sm mt-3">
+                The apex student body fostering leadership, creativity, and
+                community. Building a vibrant legacy for the future leaders.
+              </p>
+            </div>
+
+            <div className="flex gap-1 pt-1">
+              {socialLinks.map((social, i) => (
+                <a
+                  key={i}
+                  href={social.href}
+                  target={social.href !== "#" ? "_blank" : "_self"}
+                  rel="noopener noreferrer"
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300"
+                  aria-label={social.label}
+                >
+                  <social.icon className="w-4 h-4" />
+                </a>
+              ))}
+            </div>
           </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="font-heading font-semibold text-background mb-4">
+          <div className="hidden lg:block lg:col-span-1" />
+
+          {/* Links Column 1 */}
+          <div className="md:col-span-4 lg:col-span-3">
+            <h4 className="font-bold text-white mb-4 text-[10px] uppercase tracking-widest opacity-70">
               Quick Links
             </h4>
             <ul className="space-y-2">
-              {["About", "Committees", "Team", "Events", "Contact"].map(
-                (link) => (
-                  <li key={link}>
-                    <a
-                      href={`#${link.toLowerCase()}`}
-                      className="text-background/70 hover:text-accent text-sm font-body transition-colors"
-                    >
-                      {link}
-                    </a>
-                  </li>
-                ),
-              )}
+              {quickLinks.map((item) => (
+                <li key={item.label}>
+                  <a
+                    href={item.href}
+                    className="text-slate-400 hover:text-accent transition-colors text-xs flex items-center gap-2 group"
+                  >
+                    <span className="w-0.5 h-0.5 rounded-full bg-slate-600 group-hover:bg-accent transition-colors" />
+                    <span className="group-hover:translate-x-1 transition-transform duration-300">
+                      {item.label}
+                    </span>
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Institute Links */}
-          <div>
-            <h4 className="font-heading font-semibold text-background mb-4">
-              Institute
+          {/* Links Column 2 */}
+          <div className="md:col-span-4 lg:col-span-3">
+            <h4 className="font-bold text-white mb-4 text-[10px] uppercase tracking-widest opacity-70">
+              Resources
             </h4>
             <ul className="space-y-2">
-              <li>
-                <a
-                  href="https://iimsambalpur.ac.in"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-background/70 hover:text-accent text-sm font-body transition-colors"
-                >
-                  IIM Sambalpur Official
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-background/70 hover:text-accent text-sm font-body transition-colors"
-                >
-                  Student Portal
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-background/70 hover:text-accent text-sm font-body transition-colors"
-                >
-                  Placements
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="text-background/70 hover:text-accent text-sm font-body transition-colors"
-                >
-                  Alumni Network
-                </a>
-              </li>
+              {resourceLinks.map((item) => (
+                <li key={item.label}>
+                  <Link
+                    to={item.to}
+                    className="text-slate-400 hover:text-accent transition-colors text-xs flex items-center gap-2 group"
+                  >
+                    <span className="group-hover:translate-x-1 transition-transform duration-300">
+                      {item.label}
+                    </span>
+                    <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all text-accent" />
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-background/10 pt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-background/50 text-sm font-body">
-              © {currentYear} Student Affairs Council, IIM Sambalpur. All rights
-              reserved.
-            </p>
-            <div className="flex items-center gap-6">
-              <a
-                href="#"
-                className="text-background/50 hover:text-accent text-sm font-body transition-colors"
+        {/* Bottom Bar */}
+        <div className="pt-6 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-slate-500">
+          <p>{copyrightText}</p>
+
+          <div className="flex items-center gap-6">
+            <span className="flex items-center gap-1 hover:text-slate-400 transition-colors cursor-default">
+              Made with{" "}
+              <Heart className="w-3 h-3 text-red-500/80 fill-red-500/20" /> by
+              Tech Team
+            </span>
+
+            {user && isEditor ? (
+              <Link
+                to="/admin"
+                className="text-accent hover:text-white flex items-center gap-1 transition-colors"
               >
-                Privacy Policy
-              </a>
-              <a
-                href="#"
-                className="text-background/50 hover:text-accent text-sm font-body transition-colors"
+                <Settings className="w-3 h-3" /> Admin
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="hover:text-white flex items-center gap-1 transition-colors opacity-40 hover:opacity-100"
               >
-                Terms of Use
-              </a>
-              {/* Admin Login Link */}
-              {user && isEditor ? (
-                <Link
-                  to="/admin"
-                  className="text-accent hover:text-accent/80 text-sm font-body transition-colors flex items-center gap-1"
-                >
-                  <Settings className="h-3 w-3" />
-                  Admin Panel
-                </Link>
-              ) : (
-                <Link
-                  to="/login"
-                  className="text-background/50 hover:text-accent text-sm font-body transition-colors flex items-center gap-1"
-                >
-                  <Settings className="h-3 w-3" />
-                  Admin Login
-                </Link>
-              )}
-            </div>
+                <Settings className="w-3 h-3" /> Login
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -1,97 +1,202 @@
-import { Linkedin, Mail, Loader2, Users } from "lucide-react";
-import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useState } from "react";
+import { Linkedin, Mail, Users, Phone } from "lucide-react";
+import { useTeamMembers } from "@/hooks/useTeamData"; // Consolidated Hook
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+import type { Variants } from "framer-motion";
+
+// --- Animation Variants ---
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.1 },
+  },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 50, damping: 20 },
+  },
+};
+
+// --- Helper Components ---
+const FadeInImage = ({ src, alt }: { src?: string; alt: string }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <div className="w-full h-full relative bg-slate-100">
+      {!isLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center text-slate-300 z-0">
+          <Users className="h-8 w-8 opacity-20" />
+        </div>
+      )}
+
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          onLoad={() => setIsLoaded(true)}
+          className={cn(
+            "w-full h-full object-cover transition-all duration-700 ease-out",
+            // Keep the grayscale-to-color effect on hover as it's a nice touch
+            "filter grayscale group-hover:grayscale-0",
+            "group-hover:scale-105",
+            isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
+          )}
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <Users className="h-10 w-10 text-slate-200" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SocialLink = ({ href, icon: Icon, label }: any) => {
+  if (!href) return null;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="p-1.5 text-slate-400 hover:text-accent hover:bg-slate-50 rounded-md transition-colors"
+      aria-label={label}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </a>
+  );
+};
 
 export const Team = () => {
+  // Use new hook: automatically filters active members
   const { data: members, isLoading } = useTeamMembers();
 
   return (
-    <section id="team" className="section-padding bg-background">
-      <div className="container-wide mx-auto">
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="inline-block text-accent font-semibold text-sm tracking-wider uppercase mb-4 font-body">
-            Leadership
-          </span>
-          <h2 className="font-heading text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-6">
-            Meet Our Team
+    <section
+      id="team"
+      className="py-4 md:py-8 bg-white relative overflow-hidden"
+    >
+      {/* Background Pattern */}
+      <div className="absolute inset-0 pointer-events-none opacity-30">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: "radial-gradient(#cbd5e1 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+          }}
+        />
+        <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-white via-white/80 to-transparent" />
+      </div>
+
+      <div className="container-wide mx-auto px-4 sm:px-6 relative z-10">
+        {/* --- Header (Left Aligned) --- */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="text-left max-w-3xl mb-12"
+        >
+          <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-0.5 rounded-full bg-slate-50 border border-slate-100 w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="text-accent font-bold tracking-widest text-[10px] uppercase">
+              The Council
+            </span>
+          </div>
+          <h2 className="font-heading text-3xl md:text-5xl font-bold text-slate-900 mb-4">
+            Meet the Team
           </h2>
-          <p className="text-muted-foreground text-lg font-body leading-relaxed">
-            Dedicated student leaders working together to enhance campus life
-            and represent the student community at IIM Sambalpur.
+          <p className="text-slate-500 text-sm md:text-base leading-relaxed max-w-xl">
+            The dedicated individuals working behind the scenes to foster
+            community, leadership, and excellence at IIM Sambalpur.
           </p>
-        </div>
+        </motion.div>
 
-        {/* Team Grid */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-accent" />
-          </div>
-        ) : members && members.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {members.map((member, index) => (
-              <div
-                key={member.id}
-                className="group relative bg-card rounded-2xl overflow-hidden shadow-card hover:shadow-elevated transition-all duration-300"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                {/* Image */}
-                <div className="aspect-[4/3] overflow-hidden bg-secondary">
-                  {member.image_url ? (
-                    <img
-                      src={member.image_url}
+        {/* --- Team Grid --- */}
+        <div className="min-h-[300px]">
+          {isLoading ? (
+            // Skeleton Loader
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden h-full aspect-[3/4]"
+                >
+                  <div className="h-full w-full bg-slate-200 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : members && members.length > 0 ? (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-50px" }}
+              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"
+            >
+              {members.map((member) => (
+                <motion.div
+                  key={member.id}
+                  variants={cardVariants}
+                  className="group flex flex-col bg-white rounded-xl border border-slate-100 overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all duration-300 will-change-transform"
+                >
+                  {/* Image Area */}
+                  <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 border-b border-slate-50">
+                    <FadeInImage
+                      src={member.image_url || undefined}
                       alt={member.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Users className="h-16 w-16 text-muted-foreground/50" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="p-6">
-                  <h3 className="font-heading text-xl font-semibold text-foreground mb-1">
-                    {member.name}
-                  </h3>
-                  <p className="text-accent font-medium text-sm font-body mb-4">
-                    {member.designation}
-                  </p>
-
-                  {/* Social Links */}
-                  <div className="flex gap-3">
-                    {member.linkedin_url && (
-                      <a
-                        href={member.linkedin_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                      >
-                        <Linkedin className="h-4 w-4" />
-                      </a>
-                    )}
-                    {member.email && (
-                      <a
-                        href={`mailto:${member.email}`}
-                        className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                      >
-                        <Mail className="h-4 w-4" />
-                      </a>
-                    )}
                   </div>
-                </div>
 
-                {/* Decorative accent */}
-                <div className="absolute top-0 left-0 w-full h-1 bg-accent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No team members available</p>
-          </div>
-        )}
+                  {/* Info Area */}
+                  <div className="p-4 text-center flex flex-col flex-1">
+                    <div className="mb-3">
+                      <h3 className="font-heading text-sm md:text-base font-bold text-slate-900 truncate px-1">
+                        {member.name}
+                      </h3>
+                      <p className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-accent mt-1 truncate px-1">
+                        {member.designation}
+                      </p>
+                    </div>
+
+                    {/* Socials - Always Visible */}
+                    <div className="mt-auto pt-3 border-t border-slate-50 flex justify-center gap-2">
+                      {member.linkedin_url && (
+                        <SocialLink
+                          href={member.linkedin_url}
+                          icon={Linkedin}
+                          label="LinkedIn"
+                        />
+                      )}
+                      {member.email && (
+                        <SocialLink
+                          href={`mailto:${member.email}`}
+                          icon={Mail}
+                          label="Email"
+                        />
+                      )}
+                      {/* Optional Phone (if your schema supports it later) */}
+                      {/* <SocialLink href="tel:..." icon={Phone} label="Phone" /> */}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <div className="text-center py-16 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <Users className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+              <p className="text-slate-400 text-sm">
+                No active team members found.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );

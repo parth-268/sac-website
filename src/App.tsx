@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Loader2 } from "lucide-react";
+import ScrollToTop from "@/components/utils/ScrollToTop"; // Import ScrollToTop
 
 // Lazy Load Public Pages
 const Index = lazy(() => import("@/pages/public/Index"));
@@ -23,13 +24,12 @@ const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
 const AdminTeam = lazy(() => import("@/pages/admin/Team"));
 const AdminEvents = lazy(() => import("@/pages/admin/Events"));
 const AdminCommittees = lazy(() => import("@/pages/admin/Committees"));
-const AdminAbout = lazy(() => import("@/pages/admin/About"));
+const AdminAbout = lazy(() => import("@/pages/admin/About")); // Fixed import name based on previous steps
 const AdminMessages = lazy(() => import("@/pages/admin/Messages"));
 const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
 const AdminClubs = lazy(() => import("@/pages/admin/Clubs"));
 const AdminAlumni = lazy(() => import("@/pages/admin/Alumni"));
 const AdminReports = lazy(() => import("@/pages/admin/Reports"));
-const AdminSiteSettings = lazy(() => import("@/pages/admin/SiteSettings"));
 const AdminHeroBanners = lazy(() => import("@/pages/admin/HeroBanners"));
 
 const queryClient = new QueryClient({
@@ -54,16 +54,19 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          {/* Added future flags to resolve warnings and prepare for React Router v7 */}
+
           <BrowserRouter
             future={{
               v7_relativeSplatPath: true,
               v7_startTransition: true,
             }}
           >
+            {/* 1. SCROLL FIXER (Must be inside BrowserRouter) */}
+            <ScrollToTop />
+
             <Suspense fallback={<PageLoader />}>
               <Routes>
-                {/* Public Routes */}
+                {/* --- PUBLIC ROUTES --- */}
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/clubs" element={<ClubsPage />} />
@@ -71,7 +74,8 @@ const App = () => (
                 <Route path="/alumni" element={<AlumniPage />} />
                 <Route path="/events" element={<EventsPage />} />
 
-                {/* Admin Routes */}
+                {/* --- ADMIN ROUTES --- */}
+                {/* We wrap individual pages to keep the layout logic simple for now */}
                 <Route path="/admin">
                   <Route
                     index
@@ -154,14 +158,6 @@ const App = () => (
                     }
                   />
                   <Route
-                    path="site-settings"
-                    element={
-                      <ProtectedRoute requireEditor>
-                        <AdminSiteSettings />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
                     path="hero-banners"
                     element={
                       <ProtectedRoute requireEditor>
@@ -171,6 +167,7 @@ const App = () => (
                   />
                 </Route>
 
+                {/* --- 404 --- */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

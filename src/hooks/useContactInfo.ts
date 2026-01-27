@@ -1,59 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { TablesInsert } from "@/integrations/supabase/types";
 
-type ContactInfo = Tables<"contact_info">;
-type ContactSubmission = Tables<"contact_submissions">;
-
-export const useContactInfo = () => {
-  return useQuery({
-    queryKey: ["contact_info"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contact_info")
-        .select("*")
-        .maybeSingle();
-
-      if (error) throw error;
-      return data as ContactInfo | null;
-    },
-  });
+type ContactSubmission = {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
 };
 
-export const useUpsertContactInfo = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (info: TablesInsert<"contact_info">) => {
-      const { data: existing } = await supabase
-        .from("contact_info")
-        .select("id")
-        .maybeSingle();
-
-      if (existing) {
-        const { data, error } = await supabase
-          .from("contact_info")
-          .update(info)
-          .eq("id", existing.id)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
-      } else {
-        const { data, error } = await supabase
-          .from("contact_info")
-          .insert(info)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contact_info"] });
-    },
-  });
-};
+// ... Removed old contact info hooks ...
 
 export const useContactSubmissions = () => {
   return useQuery({

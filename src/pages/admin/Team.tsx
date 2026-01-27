@@ -2,10 +2,9 @@ import { useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useTeamMembers,
-  useCreateTeamMember,
-  useUpdateTeamMember,
-  useDeleteTeamMember,
-} from "@/hooks/useTeamMembers";
+  useTeamMutations,
+  TeamMember,
+} from "@/hooks/useTeamData";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,31 +14,24 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Loader2, Users } from "lucide-react";
-import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  Linkedin,
+  Mail,
+  GripVertical,
+  GraduationCap,
+} from "lucide-react";
+import { toast } from "sonner";
 
-interface TeamMemberForm {
-  name: string;
-  designation: string;
-  image_url: string;
-  linkedin_url: string;
-  email: string;
-  display_order: number;
-  is_active: boolean;
-}
-
-const emptyForm: TeamMemberForm = {
+const initialForm = {
   name: "",
   designation: "",
   image_url: "",
@@ -49,119 +41,214 @@ const emptyForm: TeamMemberForm = {
   is_active: true,
 };
 
-const AdminTeam = () => {
-  const [dialogOpen, setDialogOpen] = useState(false);
+export default function AdminTeam() {
+  const { data: members, isLoading } = useTeamMembers();
+  const { createMember, updateMember, deleteMember, moveToAlumni } =
+    useTeamMutations();
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<TeamMemberForm>(emptyForm);
+  const [form, setForm] = useState(initialForm);
+  const [archiveBatch, setArchiveBatch] = useState(
+    new Date().getFullYear().toString(),
+  );
+  const [memberToArchive, setMemberToArchive] = useState<TeamMember | null>(
+    null,
+  );
 
-  const { data: members, isLoading } = useTeamMembers(false);
-  const createMember = useCreateTeamMember();
-  const updateMember = useUpdateTeamMember();
-  const deleteMember = useDeleteTeamMember();
-
+  // --- Handlers ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
       if (editingId) {
         await updateMember.mutateAsync({ id: editingId, ...form });
-        toast.success("Team member updated");
+        toast.success("Member updated");
       } else {
         await createMember.mutateAsync(form);
-        toast.success("Team member added");
+        toast.success("Member added");
       }
-      setDialogOpen(false);
-      setForm(emptyForm);
-      setEditingId(null);
+      setIsDialogOpen(false);
     } catch (error) {
-      toast.error("Failed to save team member");
+      toast.error("Failed to save");
     }
   };
 
-  const handleEdit = (
-    member: typeof members extends (infer T)[] ? T : never,
-  ) => {
-    setForm({
-      name: member.name,
-      designation: member.designation,
-      image_url: member.image_url || "",
-      linkedin_url: member.linkedin_url || "",
-      email: member.email || "",
-      display_order: member.display_order,
-      is_active: member.is_active,
-    });
-    setEditingId(member.id);
-    setDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this team member?")) {
-      try {
-        await deleteMember.mutateAsync(id);
-        toast.success("Team member deleted");
-      } catch (error) {
-        toast.error("Failed to delete team member");
-      }
+  const handleArchive = async () => {
+    if (!memberToArchive || !archiveBatch) return;
+    try {
+      await moveToAlumni.mutateAsync({
+        id: memberToArchive.id,
+        batch_year: archiveBatch,
+      });
+      toast.success("Moved to Alumni");
+      setIsArchiveDialogOpen(false);
+    } catch (error) {
+      toast.error("Failed to archive");
     }
   };
 
-  const openNewDialog = () => {
-    setForm(emptyForm);
+  const openNew = () => {
+    setForm(initialForm);
     setEditingId(null);
-    setDialogOpen(true);
+    setIsDialogOpen(true);
   };
+  const openEdit = (m: TeamMember) => {
+    setForm({
+      name: m.name,
+      designation: m.designation,
+      image_url: m.image_url || "",
+      linkedin_url: m.linkedin_url || "",
+      email: m.email || "",
+      display_order: m.display_order,
+      is_active: m.is_active,
+    });
+    setEditingId(m.id);
+    setIsDialogOpen(true);
+  };
+  const openArchive = (m: TeamMember) => {
+    setMemberToArchive(m);
+    setIsArchiveDialogOpen(true);
+  };
+
+  if (isLoading)
+    return (
+      <AdminLayout title="Team">
+        <Loader2 className="animate-spin mx-auto mt-10" />
+      </AdminLayout>
+    );
 
   return (
-    <AdminLayout title="Team Management">
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-muted-foreground">
-          Manage SAC council members and their information
-        </p>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="gold" onClick={openNewDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingId ? "Edit Team Member" : "Add Team Member"}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+    <AdminLayout
+      title="Current Team"
+      description="Manage active council members. Move graduating members to Alumni."
+      actions={
+        <Button onClick={openNew} className="gap-2">
+          <Plus className="w-4 h-4" /> Add Member
+        </Button>
+      }
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {members?.map((member) => (
+          <Card
+            key={member.id}
+            className={`overflow-hidden transition-all ${!member.is_active ? "opacity-70 border-dashed" : "hover:shadow-md"}`}
+          >
+            <CardContent className="p-4 flex items-start gap-4">
+              <Avatar className="h-16 w-16 border-2 border-slate-100">
+                <AvatarImage src={member.image_url || ""} />
+                <AvatarFallback className="bg-slate-200 text-slate-500 font-bold text-lg">
+                  {member.name.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-900 truncate pr-2">
+                    {member.name}
+                  </h3>
+                  <Badge
+                    variant={member.is_active ? "default" : "secondary"}
+                    className="text-[10px] h-5"
+                  >
+                    {member.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-accent font-medium truncate">
+                  {member.designation}
+                </p>
+
+                <div className="flex items-center gap-3 pt-2">
+                  {member.linkedin_url && (
+                    <Linkedin className="w-3.5 h-3.5 text-blue-600" />
+                  )}
+                  {member.email && (
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                  <div className="flex items-center gap-1 text-xs text-slate-400 ml-auto">
+                    <GripVertical className="w-3 h-3" /> Ord:{" "}
+                    {member.display_order}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+
+            {/* Actions Footer */}
+            <div className="px-4 py-2 bg-slate-50 border-t flex justify-between items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1 text-slate-600"
+                onClick={() => openEdit(member)}
+              >
+                <Pencil className="w-3 h-3" /> Edit
+              </Button>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                  onClick={() => openArchive(member)}
+                >
+                  <GraduationCap className="w-3 h-3" /> Archive
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-red-400 hover:text-red-600"
+                  onClick={() => {
+                    if (confirm("Delete?")) deleteMember.mutate(member.id);
+                  }}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* --- CREATE / EDIT DIALOG --- */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingId ? "Edit Member" : "New Team Member"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
+                <Label>Name</Label>
                 <Input
-                  id="name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="designation">Designation *</Label>
+                <Label>Designation</Label>
                 <Input
-                  id="designation"
                   value={form.designation}
                   onChange={(e) =>
                     setForm({ ...form, designation: e.target.value })
                   }
-                  placeholder="e.g., General Secretary"
                   required
                 />
               </div>
-              <ImageUpload
-                value={form.image_url}
-                onChange={(url) => setForm({ ...form, image_url: url })}
-                folder="team"
-                label="Profile Photo"
-              />
+            </div>
+
+            <ImageUpload
+              value={form.image_url}
+              onChange={(url) => setForm({ ...form, image_url: url })}
+              folder="team"
+              label="Profile Photo"
+            />
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="linkedin_url">LinkedIn URL</Label>
+                <Label>LinkedIn</Label>
                 <Input
-                  id="linkedin_url"
                   value={form.linkedin_url}
                   onChange={(e) =>
                     setForm({ ...form, linkedin_url: e.target.value })
@@ -169,127 +256,71 @@ const AdminTeam = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label>Email</Label>
                 <Input
-                  id="email"
-                  type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="display_order">Display Order</Label>
-                <Input
-                  id="display_order"
-                  type="number"
-                  value={form.display_order}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      display_order: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Switch
-                  id="is_active"
                   checked={form.is_active}
-                  onCheckedChange={(checked) =>
-                    setForm({ ...form, is_active: checked })
-                  }
+                  onCheckedChange={(c) => setForm({ ...form, is_active: c })}
                 />
-                <Label htmlFor="is_active">Active</Label>
+                <Label>Active Status</Label>
               </div>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={createMember.isPending || updateMember.isPending}
-              >
-                {(createMember.isPending || updateMember.isPending) && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                {editingId ? "Update" : "Add"} Member
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+              <Input
+                type="number"
+                className="w-24"
+                placeholder="Order"
+                value={form.display_order}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    display_order: parseInt(e.target.value) || 0,
+                  })
+                }
+              />
+            </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        </div>
-      ) : members && members.length > 0 ? (
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Designation</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-24">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell className="font-medium">{member.name}</TableCell>
-                  <TableCell>{member.designation}</TableCell>
-                  <TableCell>{member.email || "-"}</TableCell>
-                  <TableCell>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        member.is_active
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {member.is_active ? "Active" : "Inactive"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(member)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(member.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-card rounded-lg border border-border">
-          <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">
-            No team members yet
-          </h3>
-          <p className="text-muted-foreground mb-4">
-            Add your first SAC council member
-          </p>
-          <Button variant="gold" onClick={openNewDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Member
-          </Button>
-        </div>
-      )}
+            <Button type="submit" className="w-full">
+              Save Member
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- ARCHIVE DIALOG --- */}
+      <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Move to Alumni</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              This will mark <strong>{memberToArchive?.name}</strong> as an
+              alumnus and remove them from the active team list.
+            </p>
+            <div className="space-y-2">
+              <Label>Graduating Batch Year</Label>
+              <Input
+                value={archiveBatch}
+                onChange={(e) => setArchiveBatch(e.target.value)}
+                placeholder="e.g. 2024"
+              />
+            </div>
+            <Button
+              onClick={handleArchive}
+              className="w-full bg-orange-600 hover:bg-orange-700"
+            >
+              Confirm Archive
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
-};
-
-export default AdminTeam;
+}

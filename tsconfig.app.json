@@ -20,12 +20,12 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "resolveJsonModule": true,
-    
+
     /* Relaxed for Production Build Stability */
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "verbatimModuleSyntax": false,
-    
+
     /* Paths */
     "baseUrl": ".",
     "paths": {

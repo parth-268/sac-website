@@ -1,19 +1,19 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { PageHero } from "@/components/layout/PageHero";
 import { useCommittees } from "@/hooks/useCommittees";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, icons } from "lucide-react";
+import { Building2, icons, Loader2, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 
 const CommitteesPage = () => {
   const { data: committees, isLoading } = useCommittees();
 
   const getIcon = (iconName: string) => {
-    const Icon = icons[iconName as keyof typeof icons];
+    const Icon = icons[iconName as keyof typeof icons] as any;
     return Icon ? (
-      <Icon className="h-10 w-10" />
+      <Icon className="h-5 w-5" />
     ) : (
-      <Building2 className="h-10 w-10" />
+      <Building2 className="h-5 w-5" />
     );
   };
 
@@ -21,67 +21,52 @@ const CommitteesPage = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="bg-primary pt-24 pb-16">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="font-heading text-4xl md:text-5xl font-bold text-primary-foreground mb-4">
-            Committees
-          </h1>
-          <p className="text-primary-foreground/80 font-body text-lg max-w-2xl mx-auto">
-            The backbone of SAC - dedicated committees working together to
-            enhance campus life
-          </p>
-        </div>
-      </section>
+      <PageHero
+        title="Academic"
+        highlight="Committees"
+        description="Ensuring academic excellence and seamless operations."
+        pattern="dots"
+      />
 
-      {/* Committees Grid */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
+      <section className="py-8 md:py-12">
+        <div className="container-wide mx-auto px-4">
           {isLoading ? (
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className="h-64 rounded-xl" />
-              ))}
+            <div className="flex justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-accent" />
             </div>
           ) : (
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {committees?.map((committee) => (
-                <Card
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {committees?.map((committee, index) => (
+                <motion.div
                   key={committee.id}
-                  className="group hover:shadow-elevated hover:border-accent/50 transition-all duration-300"
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: index * 0.05 }}
+                  className="group relative bg-card p-5 rounded-xl border border-border hover:border-accent/40 transition-all duration-300 hover:shadow-sm"
                 >
-                  <CardHeader>
-                    <div className="p-4 bg-accent/10 rounded-xl text-accent w-fit mb-4 group-hover:bg-accent group-hover:text-accent-foreground transition-colors">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors shrink-0">
                       {getIcon(committee.icon)}
                     </div>
-                    <CardTitle className="font-heading text-xl">
-                      {committee.name}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground font-body leading-relaxed">
-                      {committee.description}
-                    </p>
-                  </CardContent>
-                </Card>
+                    <div>
+                      <h3 className="font-heading text-base font-bold mb-1 group-hover:text-accent transition-colors">
+                        {committee.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                        {committee.description}
+                      </p>
+                    </div>
+                    <ChevronRight className="absolute right-4 top-6 w-4 h-4 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                  </div>
+                </motion.div>
               ))}
-            </div>
-          )}
-
-          {!isLoading && (!committees || committees.length === 0) && (
-            <div className="text-center py-16">
-              <Building2 className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground font-body">
-                No committees available yet
-              </p>
             </div>
           )}
         </div>
       </section>
-
       <Footer />
     </div>
   );
 };
-
 export default CommitteesPage;

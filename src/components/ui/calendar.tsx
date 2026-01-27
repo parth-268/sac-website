@@ -18,6 +18,7 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
+        // ... keep your existing classNames ...
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
@@ -51,9 +52,13 @@ function Calendar({
         day_hidden: "invisible",
         ...classNames,
       }}
+      // 👇 UPDATED COMPONENTS PROP
       components={{
-        ChevronLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        ChevronRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        Chevron: ({ ...props }) => {
+          if (props.orientation === "left")
+            return <ChevronLeft className="h-4 w-4" />;
+          return <ChevronRight className="h-4 w-4" />;
+        },
       }}
       {...props}
     />
