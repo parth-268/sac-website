@@ -8,9 +8,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Loader2 } from "lucide-react";
-import ScrollToTop from "@/components/utils/ScrollToTop"; // Import ScrollToTop
+import ScrollToTop from "@/components/utils/ScrollToTop";
 
-// Lazy Load Public Pages
+// Lazy Imports...
 const Index = lazy(() => import("@/pages/public/Index"));
 const Login = lazy(() => import("@/pages/public/Login"));
 const ClubsPage = lazy(() => import("@/pages/public/ClubsPage"));
@@ -19,12 +19,12 @@ const AlumniPage = lazy(() => import("@/pages/public/AlumniPage"));
 const EventsPage = lazy(() => import("@/pages/public/EventsPage"));
 const NotFound = lazy(() => import("@/pages/public/NotFound"));
 
-// Lazy Load Admin Pages
+// Admin Imports...
 const AdminDashboard = lazy(() => import("@/pages/admin/Dashboard"));
 const AdminTeam = lazy(() => import("@/pages/admin/Team"));
 const AdminEvents = lazy(() => import("@/pages/admin/Events"));
 const AdminCommittees = lazy(() => import("@/pages/admin/Committees"));
-const AdminAbout = lazy(() => import("@/pages/admin/About")); // Fixed import name based on previous steps
+const AdminAbout = lazy(() => import("@/pages/admin/About"));
 const AdminMessages = lazy(() => import("@/pages/admin/Messages"));
 const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
 const AdminClubs = lazy(() => import("@/pages/admin/Clubs"));
@@ -32,11 +32,21 @@ const AdminAlumni = lazy(() => import("@/pages/admin/Alumni"));
 const AdminReports = lazy(() => import("@/pages/admin/Reports"));
 const AdminHeroBanners = lazy(() => import("@/pages/admin/HeroBanners"));
 
+// --- POLLING CONFIGURATION ---
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      // 1. DATA POLLING: Refetch every 30 seconds
+      refetchInterval: 1000 * 30,
+
+      // 2. Refetch even if the user is on another tab (Good for dashboards)
+      refetchIntervalInBackground: false,
+
+      // 3. Data is considered "fresh" for 10 seconds before it can be refetched
+      staleTime: 1000 * 10,
+
       retry: 1,
+      refetchOnWindowFocus: true, // Auto-refresh when user clicks back to the tab
     },
   },
 });
@@ -61,7 +71,6 @@ const App = () => (
               v7_startTransition: true,
             }}
           >
-            {/* 1. SCROLL FIXER (Must be inside BrowserRouter) */}
             <ScrollToTop />
 
             <Suspense fallback={<PageLoader />}>
@@ -75,7 +84,6 @@ const App = () => (
                 <Route path="/events" element={<EventsPage />} />
 
                 {/* --- ADMIN ROUTES --- */}
-                {/* We wrap individual pages to keep the layout logic simple for now */}
                 <Route path="/admin">
                   <Route
                     index
@@ -167,7 +175,6 @@ const App = () => (
                   />
                 </Route>
 
-                {/* --- 404 --- */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

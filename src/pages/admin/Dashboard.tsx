@@ -1,5 +1,5 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
-import { useTeamMembers, useAlumniMembers } from "@/hooks/useTeamData"; // Updated Hook Import
+import { useTeamMembers, useAlumniMembers } from "@/hooks/useTeamData";
 import { useEvents } from "@/hooks/useEvents";
 import { useCommittees } from "@/hooks/useCommittees";
 import { useContactSubmissions } from "@/hooks/useContactInfo";
@@ -15,10 +15,12 @@ import {
   ArrowUpRight,
   Plus,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // --- Components ---
 
@@ -28,15 +30,18 @@ const StatCard = ({
   icon: Icon,
   href,
   colorClass,
-  delay,
+  delay = 0,
+  isLoading,
 }: any) => (
   <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.4 }}
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }} // Forced animation on mount
+    transition={{ delay, duration: 0.4, ease: "easeOut" }}
+    className="h-full"
   >
     <Link to={href} className="block h-full">
       <div className="group h-full bg-white border border-slate-100 rounded-2xl p-6 hover:shadow-xl hover:shadow-slate-200/40 hover:border-accent/30 transition-all duration-300 relative overflow-hidden">
+        {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div
             className={cn(
@@ -51,10 +56,15 @@ const StatCard = ({
           </div>
         </div>
 
+        {/* Content */}
         <div>
-          <h3 className="text-3xl font-bold text-slate-900 mb-1 font-heading">
-            {value}
-          </h3>
+          {isLoading ? (
+            <Skeleton className="h-9 w-16 mb-1" />
+          ) : (
+            <h3 className="text-3xl font-bold text-slate-900 mb-1 font-heading">
+              {value}
+            </h3>
+          )}
           <p className="text-sm font-medium text-slate-500">{title}</p>
         </div>
 
@@ -65,24 +75,25 @@ const StatCard = ({
   </motion.div>
 );
 
-const ActionCard = ({ title, desc, href, icon: Icon, delay }: any) => (
+const ActionCard = ({ title, desc, href, icon: Icon, delay = 0 }: any) => (
   <motion.div
     initial={{ opacity: 0, x: -10 }}
     animate={{ opacity: 1, x: 0 }}
     transition={{ delay, duration: 0.4 }}
+    className="h-full"
   >
     <Link
       to={href}
-      className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-accent/50 hover:bg-slate-50/50 transition-all group"
+      className="flex items-center gap-4 p-4 h-full bg-white border border-slate-100 rounded-xl hover:border-accent/50 hover:bg-slate-50/50 transition-all group shadow-sm hover:shadow-md"
     >
-      <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-accent group-hover:text-white transition-colors">
+      <div className="w-12 h-12 shrink-0 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-accent group-hover:text-white transition-colors">
         <Icon className="w-5 h-5" />
       </div>
       <div>
         <h4 className="font-bold text-slate-800 text-sm group-hover:text-accent transition-colors">
           {title}
         </h4>
-        <p className="text-xs text-slate-500">{desc}</p>
+        <p className="text-xs text-slate-500 line-clamp-1">{desc}</p>
       </div>
     </Link>
   </motion.div>
@@ -91,14 +102,13 @@ const ActionCard = ({ title, desc, href, icon: Icon, delay }: any) => (
 const AdminDashboard = () => {
   const { user } = useAuth();
 
-  // Use new hooks from useTeamData
-  const { data: teamMembers } = useTeamMembers();
-  const { data: alumni } = useAlumniMembers(); // Updated from useAlumni()
-
-  const { data: events } = useEvents();
-  const { data: committees } = useCommittees();
-  const { data: messages } = useContactSubmissions();
-  const { data: clubs } = useClubs();
+  // Data Hooks
+  const { data: teamMembers, isLoading: teamLoading } = useTeamMembers();
+  const { data: alumni, isLoading: alumniLoading } = useAlumniMembers();
+  const { data: events, isLoading: eventsLoading } = useEvents();
+  const { data: committees, isLoading: commLoading } = useCommittees();
+  const { data: messages, isLoading: msgLoading } = useContactSubmissions();
+  const { data: clubs, isLoading: clubsLoading } = useClubs();
 
   const unreadMessages = messages?.filter((m) => !m.is_read).length || 0;
 
@@ -117,6 +127,7 @@ const AdminDashboard = () => {
       icon: Users,
       href: "/admin/team",
       colorClass: "text-blue-600 group-hover:text-blue-700",
+      isLoading: teamLoading,
     },
     {
       title: "Upcoming Events",
@@ -124,6 +135,7 @@ const AdminDashboard = () => {
       icon: Calendar,
       href: "/admin/events",
       colorClass: "text-amber-500 group-hover:text-amber-600",
+      isLoading: eventsLoading,
     },
     {
       title: "Active Committees",
@@ -131,6 +143,7 @@ const AdminDashboard = () => {
       icon: Building2,
       href: "/admin/committees",
       colorClass: "text-purple-600 group-hover:text-purple-700",
+      isLoading: commLoading,
     },
     {
       title: "Clubs",
@@ -138,6 +151,7 @@ const AdminDashboard = () => {
       icon: Briefcase,
       href: "/admin/clubs",
       colorClass: "text-teal-600 group-hover:text-teal-700",
+      isLoading: clubsLoading,
     },
     {
       title: "Alumni Network",
@@ -145,6 +159,7 @@ const AdminDashboard = () => {
       icon: GraduationCap,
       href: "/admin/alumni",
       colorClass: "text-indigo-600 group-hover:text-indigo-700",
+      isLoading: alumniLoading,
     },
     {
       title: "Total Messages",
@@ -152,6 +167,7 @@ const AdminDashboard = () => {
       icon: MessageSquare,
       href: "/admin/messages",
       colorClass: "text-rose-500 group-hover:text-rose-600",
+      isLoading: msgLoading,
     },
   ];
 

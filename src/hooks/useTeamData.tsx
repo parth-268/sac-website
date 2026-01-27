@@ -13,6 +13,7 @@ export type TeamMember = {
   is_active: boolean;
   is_alumni: boolean;
   batch_year: string | null;
+  phone_number: string | null;
 };
 
 // 1. Fetch Current Team (Not Alumni)

@@ -3,25 +3,6 @@ import { Linkedin, Mail, Users, Phone } from "lucide-react";
 import { useTeamMembers } from "@/hooks/useTeamData"; // Consolidated Hook
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import type { Variants } from "framer-motion";
-
-// --- Animation Variants ---
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05, delayChildren: 0.1 },
-  },
-};
-
-const cardVariants: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 50, damping: 20 },
-  },
-};
 
 // --- Helper Components ---
 const FadeInImage = ({ src, alt }: { src?: string; alt: string }) => {
@@ -135,17 +116,15 @@ export const Team = () => {
               ))}
             </div>
           ) : members && members.length > 0 ? (
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-50px" }}
-              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6"
-            >
-              {members.map((member) => (
+            // FIX: Removed containerVariants. Added independent animation to each card.
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              {members.map((member, index) => (
                 <motion.div
                   key={member.id}
-                  variants={cardVariants}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.5, delay: index * 0.05 }} // Manual Stagger
                   className="group flex flex-col bg-white rounded-xl border border-slate-100 overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all duration-300 will-change-transform"
                 >
                   {/* Image Area */}
@@ -184,12 +163,18 @@ export const Team = () => {
                         />
                       )}
                       {/* Optional Phone (if your schema supports it later) */}
-                      {/* <SocialLink href="tel:..." icon={Phone} label="Phone" /> */}
+                      {member.phone_number && (
+                        <SocialLink
+                          href={`tel:${member.phone_number}`}
+                          icon={Phone}
+                          label="Phone"
+                        />
+                      )}
                     </div>
                   </div>
                 </motion.div>
               ))}
-            </motion.div>
+            </div>
           ) : (
             <div className="text-center py-16 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
               <Users className="h-10 w-10 mx-auto text-slate-300 mb-3" />
