@@ -54,7 +54,7 @@ const navGroups = [
       { name: "About Page", href: "/admin/about", icon: FileText },
       { name: "Settings", href: "/admin/settings", icon: Settings },
       { name: "Profile", href: "/admin/profile", icon: Globe },
-      { name: "User Directory", href: "/admin/users", icon: Users }
+      { name: "User Directory", href: "/admin/users", icon: Users },
     ],
   },
 ];
