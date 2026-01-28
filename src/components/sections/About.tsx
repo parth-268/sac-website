@@ -5,8 +5,18 @@ import { useCommittees } from "@/hooks/useCommittees";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { cubicBezier } from "framer-motion";
 
-// Helper for Stats
+// --- Shared Animation Config ---
+
+const EASE_OUT = cubicBezier(0.22, 1, 0.36, 1);
+
+const CARD_TRANSITION = {
+  duration: 0.6,
+  ease: EASE_OUT,
+};
+
+// --- Helper for Stats ---
 const StatDisplay = ({ value, label }: any) => (
   <div>
     <span className="font-heading text-3xl font-bold text-accent tracking-tight block">
@@ -56,11 +66,12 @@ export const About = () => {
       <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-50 via-slate-50/50 to-transparent" />
 
       <div className="container-wide mx-auto px-6 relative z-10">
+        {/* --- Header --- */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 14 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6, ease: EASE_OUT }}
           className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12"
         >
           <div className="max-w-2xl">
@@ -94,17 +105,17 @@ export const About = () => {
           </p>
         </motion.div>
 
-        {/* --- Bento Grid (Independent Animations) --- */}
+        {/* --- Bento Grid --- */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[minmax(140px,auto)]">
-          {/* 1. VISION */}
+          {/* Vision */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+            transition={CARD_TRANSITION}
             className="md:col-span-2 md:row-span-2 bg-[#0F172A] rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between group shadow-xl"
           >
-            <div className="absolute top-0 right-0 p-8 opacity-[0.08] transition-transform duration-700 group-hover:scale-110">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.08] transition-transform duration-700 group-hover:scale-110 will-change-transform">
               <Lightbulb className="w-40 h-40 text-white" />
             </div>
             <div className="relative z-10">
@@ -121,12 +132,12 @@ export const About = () => {
             </div>
           </motion.div>
 
-          {/* 2. DEMOGRAPHICS */}
+          {/* Demographics */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            transition={{ ...CARD_TRANSITION, delay: 0.05 }}
             className="md:col-span-2 bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md"
           >
             <div className="flex items-center justify-between mb-5">
@@ -152,6 +163,7 @@ export const About = () => {
                 </span>
               </div>
             </div>
+
             <div className="space-y-3">
               {[b1, b2].map((b, i) => (
                 <div key={i}>
@@ -160,17 +172,27 @@ export const About = () => {
                     <span>{b.male + b.female} Students</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                    <div
-                      className="h-full bg-slate-800"
-                      style={{
+                    <motion.div
+                      initial={{ width: 0 }}
+                      whileInView={{
                         width: `${(b.male / (b.male + b.female)) * 100}%`,
                       }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.8, ease: EASE_OUT }}
+                      className="h-full bg-slate-800"
                     />
-                    <div
-                      className="h-full bg-accent"
-                      style={{
+                    <motion.div
+                      initial={{ width: 0 }}
+                      whileInView={{
                         width: `${(b.female / (b.male + b.female)) * 100}%`,
                       }}
+                      viewport={{ once: true }}
+                      transition={{
+                        duration: 0.8,
+                        ease: EASE_OUT,
+                        delay: 0.05,
+                      }}
+                      className="h-full bg-accent"
                     />
                   </div>
                 </div>
@@ -178,13 +200,14 @@ export const About = () => {
             </div>
           </motion.div>
 
-          {/* 3. CLUBS */}
+          {/* Clubs */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-white border border-slate-100 rounded-2xl hover:-translate-y-1 transition-transform duration-300 relative overflow-hidden"
+            transition={{ ...CARD_TRANSITION, delay: 0.1 }}
+            className="bg-white border border-slate-100 rounded-2xl relative overflow-hidden will-change-transform"
+            whileHover={{ y: -4 }}
           >
             <Link
               to="/clubs"
@@ -200,13 +223,14 @@ export const About = () => {
             </Link>
           </motion.div>
 
-          {/* 4. COMMITTEES */}
+          {/* Committees */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="bg-white border border-slate-100 rounded-2xl hover:-translate-y-1 transition-transform duration-300 relative overflow-hidden"
+            transition={{ ...CARD_TRANSITION, delay: 0.15 }}
+            className="bg-white border border-slate-100 rounded-2xl relative overflow-hidden will-change-transform"
+            whileHover={{ y: -4 }}
           >
             <Link
               to="/committees"
@@ -222,16 +246,24 @@ export const About = () => {
             </Link>
           </motion.div>
 
-          {/* 5. MISSION */}
+          {/* Mission */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{ ...CARD_TRANSITION, delay: 0.2 }}
             className="md:col-span-2 bg-slate-50 rounded-2xl p-6 border border-slate-100"
           >
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 bg-accent rounded-full animate-pulse" />
+              <motion.div
+                animate={{ scale: [1, 1.3, 1] }}
+                transition={{
+                  duration: 1.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className="w-2 h-2 bg-accent rounded-full"
+              />
               <h4 className="font-heading text-lg font-bold text-slate-900">
                 Our Mission
               </h4>
@@ -242,12 +274,12 @@ export const About = () => {
             </p>
           </motion.div>
 
-          {/* 6. LINK */}
+          {/* CTA */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+            transition={{ ...CARD_TRANSITION, delay: 0.25 }}
             className="md:col-span-2 group relative"
           >
             <Link
@@ -259,16 +291,20 @@ export const About = () => {
                   <div className="p-2 w-fit bg-blue-50 text-blue-600 rounded-lg mb-2">
                     <Award className="w-4 h-4" />
                   </div>
-                  <h4 className="font-bold text-slate-900 text-lg group-hover:text-accent">
+                  <h4 className="font-bold text-slate-900 text-lg group-hover:text-accent transition-colors">
                     Life at IIM Sambalpur
                   </h4>
                   <p className="text-slate-500 text-sm">
                     Explore our flagship events, culture, and campus vibes.
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-all">
+                <motion.div
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.3, ease: EASE_OUT }}
+                  className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-accent group-hover:text-white"
+                >
                   <ArrowUpRight className="w-5 h-5" />
-                </div>
+                </motion.div>
               </div>
             </Link>
           </motion.div>

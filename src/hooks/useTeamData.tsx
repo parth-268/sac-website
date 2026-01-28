@@ -13,7 +13,8 @@ export type TeamMember = {
   display_order: number;
   is_active: boolean;
   is_alumni: boolean;
-  batch_year: string | null;
+  batch_year: string | null; // Used for Alumni Year
+  academic_batch: string | null; // ✅ Added to support Seniority/Sorting logic
   phone: string | null; // ✅ Renamed from phone_number to phone
   user_id: string | null; // ✅ Added to support Admin Shield
 };
@@ -60,7 +61,7 @@ export const useTeamMutations = () => {
   const createMember = useMutation({
     mutationFn: async (data: any) => {
       // We use 'any' here to bypass strict typing if the DB types haven't regenerated yet
-      // ensuring 'phone' is passed correctly.
+      // ensuring 'phone' and 'academic_batch' are passed correctly.
       const { error } = await supabase.from("team_members").insert(data);
       if (error) throw error;
     },

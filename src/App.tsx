@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Loader2 } from "lucide-react";
 import ScrollToTop from "@/components/utils/ScrollToTop";
+import { AppErrorBoundary } from "@/components/utils/AppErrorBoundary";
 
 // Lazy Imports...
 const Index = lazy(() => import("@/pages/public/Index"));
@@ -38,17 +39,23 @@ const AdminHeroBanners = lazy(() => import("@/pages/admin/HeroBanners"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // 1. DATA POLLING: Refetch every 30 seconds
-      refetchInterval: 1000 * 30,
+      // Poll only where explicitly needed
+      refetchInterval: false,
 
-      // 2. Refetch even if the user is on another tab (Good for dashboards)
-      refetchIntervalInBackground: false,
+      // Treat data as fresh for 30s (reduces refetch churn)
+      staleTime: 1000 * 30,
 
-      // 3. Data is considered "fresh" for 10 seconds before it can be refetched
-      staleTime: 1000 * 10,
+      // Cache unused data for 5 minutes
+      gcTime: 1000 * 60 * 5,
 
+      // Avoid noisy retries
       retry: 1,
-      refetchOnWindowFocus: true, // Auto-refresh when user clicks back to the tab
+
+      // Refetch when user returns to tab
+      refetchOnWindowFocus: true,
+
+      // Avoid refetch on remount for static pages
+      refetchOnMount: false,
     },
   },
 });
@@ -75,127 +82,129 @@ const App = () => (
           >
             <ScrollToTop />
 
-            <Suspense fallback={<PageLoader />}>
-              <Routes>
-                {/* --- PUBLIC ROUTES --- */}
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/clubs" element={<ClubsPage />} />
-                <Route path="/committees" element={<CommitteesPage />} />
-                <Route path="/alumni" element={<AlumniPage />} />
-                <Route path="/events" element={<EventsPage />} />
+            <AppErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
+                  {/* --- PUBLIC ROUTES --- */}
+                  <Route path="/" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/clubs" element={<ClubsPage />} />
+                  <Route path="/committees" element={<CommitteesPage />} />
+                  <Route path="/alumni" element={<AlumniPage />} />
+                  <Route path="/events" element={<EventsPage />} />
 
-                {/* --- ADMIN ROUTES --- */}
-                <Route path="/admin">
-                  <Route
-                    index
-                    element={
-                      <ProtectedRoute>
-                        <AdminDashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="team"
-                    element={
-                      <ProtectedRoute>
-                        <AdminTeam />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="events"
-                    element={
-                      <ProtectedRoute>
-                        <AdminEvents />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="committees"
-                    element={
-                      <ProtectedRoute>
-                        <AdminCommittees />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="about"
-                    element={
-                      <ProtectedRoute>
-                        <AdminAbout />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="messages"
-                    element={
-                      <ProtectedRoute>
-                        <AdminMessages />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="settings"
-                    element={
-                      <ProtectedRoute>
-                        <AdminSettings />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="profile"
-                    element={
-                      <ProtectedRoute>
-                        <AdminProfile />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="users"
-                    element={
-                      <ProtectedRoute>
-                        <AdminUsersDirectory />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="clubs"
-                    element={
-                      <ProtectedRoute>
-                        <AdminClubs />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="alumni"
-                    element={
-                      <ProtectedRoute>
-                        <AdminAlumni />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="reports"
-                    element={
-                      <ProtectedRoute>
-                        <AdminReports />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="hero-banners"
-                    element={
-                      <ProtectedRoute>
-                        <AdminHeroBanners />
-                      </ProtectedRoute>
-                    }
-                  />
-                </Route>
+                  {/* --- ADMIN ROUTES --- */}
+                  <Route path="/admin">
+                    <Route
+                      index
+                      element={
+                        <ProtectedRoute>
+                          <AdminDashboard />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="team"
+                      element={
+                        <ProtectedRoute>
+                          <AdminTeam />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="events"
+                      element={
+                        <ProtectedRoute>
+                          <AdminEvents />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="committees"
+                      element={
+                        <ProtectedRoute>
+                          <AdminCommittees />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="about"
+                      element={
+                        <ProtectedRoute>
+                          <AdminAbout />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="messages"
+                      element={
+                        <ProtectedRoute>
+                          <AdminMessages />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="settings"
+                      element={
+                        <ProtectedRoute>
+                          <AdminSettings />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="profile"
+                      element={
+                        <ProtectedRoute>
+                          <AdminProfile />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="users"
+                      element={
+                        <ProtectedRoute>
+                          <AdminUsersDirectory />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="clubs"
+                      element={
+                        <ProtectedRoute>
+                          <AdminClubs />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="alumni"
+                      element={
+                        <ProtectedRoute>
+                          <AdminAlumni />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="reports"
+                      element={
+                        <ProtectedRoute>
+                          <AdminReports />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="hero-banners"
+                      element={
+                        <ProtectedRoute>
+                          <AdminHeroBanners />
+                        </ProtectedRoute>
+                      }
+                    />
+                  </Route>
 
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </AppErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

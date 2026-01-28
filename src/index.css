@@ -97,6 +97,12 @@
     /* REMOVED: font-size: 16px; (This causes alignment issues by overriding rems) */
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
@@ -149,12 +155,25 @@
   }
 }
 
+@layer base {
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
 @layer utilities {
   .animate-fade-up {
     animation: fadeUp 0.6s ease-out forwards;
+    will-change: transform, opacity;
   }
   .animate-fade-in {
     animation: fadeIn 0.8s ease-out forwards;
+    will-change: opacity;
+  }
+
+  .scroll-offset {
+    scroll-margin-top: 5rem;
   }
 
   @keyframes fadeUp {
@@ -174,5 +193,12 @@
     to {
       opacity: 1;
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in {
+    animation: none;
   }
 }

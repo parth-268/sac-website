@@ -38,10 +38,28 @@ import {
   Download,
   CheckSquare,
   XSquare,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+
+// --- Configuration ---
+
+// Configurable Role Hierarchy (Lower number = Higher Priority)
+const ROLE_HIERARCHY: Record<string, number> = {
+  president: 1,
+  "vice president": 2,
+  treasurer: 3,
+  "general secretary": 4,
+  coordinator: 99, // Default for others
+};
+
+// Roles restricted to the Senior-most batch
+const RESTRICTED_ROLES = [
+  "president",
+  "vice president",
+  "treasurer",
+  "general secretary",
+];
 
 // --- Types ---
 
@@ -51,6 +69,7 @@ interface ExcelRow {
   Email?: string;
   Phone?: string;
   "LinkedIn URL"?: string;
+  "Academic Batch"?: string | number;
 }
 
 const initialForm = {
@@ -60,6 +79,7 @@ const initialForm = {
   linkedin_url: "",
   email: "",
   phone: "",
+  academic_batch: "",
   display_order: 0,
   is_active: true,
 };
@@ -96,6 +116,38 @@ export default function AdminTeam() {
   // --- Excel Import Refs ---
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Derived State (Sorting) ---
+
+  const sortedMembers = useMemo(() => {
+    if (!members) return [];
+
+    return [...members].sort((a, b) => {
+      // 1. Sort by Academic Batch (Ascending: Seniors/Older Batches First)
+      // Assuming batch format is Year (e.g., 2023). 2023 < 2024.
+      // If batch is missing, treat as highest number (Junior-most).
+      const batchA = a.academic_batch
+        ? parseInt(String(a.academic_batch))
+        : 9999;
+      const batchB = b.academic_batch
+        ? parseInt(String(b.academic_batch))
+        : 9999;
+
+      if (batchA !== batchB) {
+        return batchA - batchB;
+      }
+
+      // 2. Sort by Role Hierarchy
+      const roleA =
+        ROLE_HIERARCHY[a.designation.toLowerCase()] ||
+        ROLE_HIERARCHY.coordinator;
+      const roleB =
+        ROLE_HIERARCHY[b.designation.toLowerCase()] ||
+        ROLE_HIERARCHY.coordinator;
+
+      return roleA - roleB;
+    });
+  }, [members]);
+
   // --- Helpers ---
 
   // Check for duplicates (Name + Email)
@@ -130,7 +182,16 @@ export default function AdminTeam() {
 
   // --- Excel Handlers ---
   const handleDownloadTemplate = () => {
-    const headers = [["Name", "Designation", "Email", "Phone", "LinkedIn URL"]];
+    const headers = [
+      [
+        "Name",
+        "Designation",
+        "Email",
+        "Phone",
+        "LinkedIn URL",
+        "Academic Batch",
+      ],
+    ];
     const ws = XLSX.utils.aoa_to_sheet(headers);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
@@ -159,7 +220,7 @@ export default function AdminTeam() {
         // --- Duplicate Filtering Logic ---
         const validRows: ExcelRow[] = [];
         let duplicatesCount = 0;
-        const processedKeys = new Set<string>(); // To check internal duplicates in the file
+        const processedKeys = new Set<string>();
 
         for (const row of data) {
           if (!row.Name) continue;
@@ -168,7 +229,6 @@ export default function AdminTeam() {
           const email = row.Email ? String(row.Email).trim() : "";
           const uniqueKey = `${name.toLowerCase()}|${email.toLowerCase()}`;
 
-          // Check against DB and Internal File Duplicates
           if (isDuplicate(name, email) || processedKeys.has(uniqueKey)) {
             duplicatesCount++;
             continue;
@@ -207,6 +267,9 @@ export default function AdminTeam() {
             linkedin_url: row["LinkedIn URL"]
               ? String(row["LinkedIn URL"]).trim()
               : "",
+            academic_batch: row["Academic Batch"]
+              ? String(row["Academic Batch"]).trim()
+              : "",
             image_url: "",
             is_active: true,
             display_order: 99,
@@ -231,12 +294,42 @@ export default function AdminTeam() {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check for duplicates
+    // 1. Check Duplicates
     if (isDuplicate(formData.name, formData.email, editingId || undefined)) {
       toast.error(
         "A member with this Name and Email already exists. Please verify.",
       );
       return;
+    }
+
+    // 2. Validate Role Constraints (Junior Batch Restriction)
+    if (members && formData.is_active) {
+      const activeBatches = members
+        .filter(
+          (m) =>
+            m.is_active &&
+            m.id !== editingId &&
+            m.academic_batch &&
+            !isNaN(parseInt(String(m.academic_batch))),
+        )
+        .map((m) => parseInt(String(m.academic_batch)));
+
+      if (activeBatches.length > 0) {
+        const seniorMostBatch = Math.min(...activeBatches);
+        const currentBatch = parseInt(formData.academic_batch);
+
+        // If trying to add a batch Junior to the senior-most existing batch
+        if (
+          !isNaN(currentBatch) &&
+          currentBatch > seniorMostBatch &&
+          RESTRICTED_ROLES.includes(formData.designation.toLowerCase())
+        ) {
+          toast.error(
+            `Batch ${currentBatch} members cannot be '${formData.designation}' while Senior Batch (${seniorMostBatch}) is active. They should be Coordinators.`,
+          );
+          return;
+        }
+      }
     }
 
     if (editingId) {
@@ -270,7 +363,6 @@ export default function AdminTeam() {
     let count = 0;
     const ids = Array.from(selectedIds);
 
-    // Process in parallel for speed
     await Promise.all(
       ids.map(async (id) => {
         const member = members?.find((m) => m.id === id);
@@ -285,19 +377,53 @@ export default function AdminTeam() {
     setSelectedIds(new Set());
   };
 
+  // Unified Archive Handler (Single & Bulk)
   const handleArchive = async () => {
-    if (!selectedMember || !archiveBatch) return;
-    if (selectedMember.email)
-      await revokeAdmin.mutateAsync(selectedMember.email);
-    await moveToAlumni.mutateAsync({
-      id: selectedMember.id,
-      batch_year: archiveBatch,
-    });
+    if (!archiveBatch) return toast.error("Please enter a Batch Year");
+
+    // Determine targets: Single Selected or Bulk Set
+    const targets = selectedMember
+      ? [selectedMember]
+      : members?.filter((m) => selectedIds.has(m.id)) || [];
+
+    if (targets.length === 0) return;
+
+    if (
+      !confirm(
+        `Move ${targets.length} member(s) to Alumni (Batch ${archiveBatch})? Access will be revoked.`,
+      )
+    )
+      return;
+
+    let successCount = 0;
+
+    await Promise.all(
+      targets.map(async (member) => {
+        try {
+          if (member.email) await revokeAdmin.mutateAsync(member.email);
+          await moveToAlumni.mutateAsync({
+            id: member.id,
+            batch_year: archiveBatch,
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to archive ${member.name}`, error);
+        }
+      }),
+    );
+
     setIsArchiveOpen(false);
-    toast.success("Member archived.");
+    setSelectedMember(null);
+    setSelectedIds(new Set()); // Clear bulk selection
+    toast.success(`Moved ${successCount} members to Alumni.`);
   };
 
-  // Unified Admin Action Handler (Single & Bulk)
+  const handleBulkArchiveClick = () => {
+    setSelectedMember(null); // Ensure no single member is selected
+    setIsArchiveOpen(true);
+  };
+
+  // Unified Admin Action Handler
   const handleAdminAction = async () => {
     if (!adminPassword) return toast.error("Enter password");
 
@@ -317,13 +443,11 @@ export default function AdminTeam() {
 
           try {
             if (member.user_id) {
-              // Existing Admin -> Reset
               await resetUserPassword.mutateAsync({
                 email: member.email,
                 password: adminPassword,
               });
             } else {
-              // New Admin -> Register
               await registerAdmin.mutateAsync({
                 email: member.email,
                 password: adminPassword,
@@ -381,6 +505,7 @@ export default function AdminTeam() {
       linkedin_url: m.linkedin_url || "",
       email: m.email || "",
       phone: m.phone || "",
+      academic_batch: m.academic_batch ? String(m.academic_batch) : "",
       display_order: m.display_order,
       is_active: m.is_active,
     });
@@ -413,7 +538,7 @@ export default function AdminTeam() {
   return (
     <AdminLayout
       title="Team Management"
-      description="Manage active members and control their dashboard access."
+      description="Manage active members, roles, and dashboard access."
       actions={
         <div className="flex gap-2 items-center">
           {/* BULK ACTIONS TOOLBAR */}
@@ -429,6 +554,14 @@ export default function AdminTeam() {
                 className="text-purple-700 hover:bg-purple-100 h-8"
               >
                 <UserCog className="w-4 h-4 mr-2" /> Grant Access
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBulkArchiveClick}
+                className="text-orange-600 hover:bg-orange-100 h-8"
+              >
+                <GraduationCap className="w-4 h-4 mr-2" /> Move to Alumni
               </Button>
               <Button
                 variant="ghost"
@@ -497,7 +630,7 @@ export default function AdminTeam() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {members?.map((member) => (
+        {sortedMembers.map((member) => (
           <Card
             key={member.id}
             className={`group relative overflow-hidden transition-all duration-200 border-slate-200 ${
@@ -515,8 +648,6 @@ export default function AdminTeam() {
             </div>
 
             <CardContent className="p-5 pl-10">
-              {" "}
-              {/* Added left padding for checkbox */}
               <div className="flex items-start gap-4">
                 <Avatar className="h-14 w-14 border-2 border-white shadow-sm ring-1 ring-slate-100">
                   <AvatarImage
@@ -671,10 +802,33 @@ export default function AdminTeam() {
                     setFormData({ ...formData, designation: e.target.value })
                   }
                   required
-                  placeholder="e.g. General Secretary"
+                  placeholder="e.g. Coordinator"
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Academic Batch</Label>
+                <Input
+                  value={formData.academic_batch}
+                  onChange={(e) =>
+                    setFormData({ ...formData, academic_batch: e.target.value })
+                  }
+                  placeholder="e.g. 2024"
+                />
+              </div>
+              <div className="flex items-center gap-2 pt-8">
+                <Switch
+                  checked={formData.is_active}
+                  onCheckedChange={(c) =>
+                    setFormData({ ...formData, is_active: c })
+                  }
+                />
+                <Label>Active Member</Label>
+              </div>
+            </div>
+
             <ImageUpload
               value={formData.image_url || ""}
               onChange={(url) => setFormData({ ...formData, image_url: url })}
@@ -711,15 +865,6 @@ export default function AdminTeam() {
                 }
                 placeholder="https://linkedin.com/in/..."
               />
-            </div>
-            <div className="flex items-center gap-2 pt-2">
-              <Switch
-                checked={formData.is_active}
-                onCheckedChange={(c) =>
-                  setFormData({ ...formData, is_active: c })
-                }
-              />
-              <Label>Active Member</Label>
             </div>
             <Button type="submit" className="w-full">
               Save Changes
@@ -799,13 +944,23 @@ export default function AdminTeam() {
       <Dialog open={isArchiveOpen} onOpenChange={setIsArchiveOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Move to Alumni</DialogTitle>
+            <DialogTitle>
+              Move{" "}
+              {selectedMember
+                ? selectedMember.name
+                : `${selectedIds.size} members`}{" "}
+              to Alumni
+            </DialogTitle>
+            <DialogDescription>
+              They will be hidden from the active team list.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Label>Batch Year</Label>
+            <Label>Batch Year (Class of...)</Label>
             <Input
               value={archiveBatch}
               onChange={(e) => setArchiveBatch(e.target.value)}
+              placeholder="e.g. 2024"
             />
             <Button onClick={handleArchive} className="w-full bg-orange-600">
               Confirm Move

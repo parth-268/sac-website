@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { motion, useReducedMotion } from "framer-motion";
 
 export const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -17,6 +18,8 @@ export const Footer = () => {
 
   // 1. FETCH DATA
   const { data: settings } = useSiteSettings();
+
+  const reduceMotion = useReducedMotion();
 
   // 2. HELPER
   const getVal = (key: string, fallback: string) =>
@@ -75,7 +78,15 @@ export const Footer = () => {
         <div className="absolute bottom-[-100px] left-[-100px] w-[400px] h-[400px] bg-accent/5 rounded-full blur-[100px] opacity-40" />
       </div>
 
-      <div className="container-wide mx-auto px-6 relative z-10">
+      <motion.div
+        initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={
+          reduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }
+        }
+        className="container-wide mx-auto px-6 relative z-10"
+      >
         <div className="grid md:grid-cols-12 gap-8 lg:gap-10 mb-4">
           {/* --- BRAND COLUMN (Logos) --- */}
           <div className="md:col-span-4 lg:col-span-5 space-y-5">
@@ -135,7 +146,7 @@ export const Footer = () => {
                   href={social.href}
                   target={social.href !== "#" ? "_blank" : "_self"}
                   rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300"
+                  className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 will-change-transform hover:scale-[1.06] transition-transform"
                   aria-label={social.label}
                 >
                   <social.icon className="w-4 h-4" />
@@ -159,7 +170,7 @@ export const Footer = () => {
                     className="text-slate-400 hover:text-accent transition-colors text-xs flex items-center gap-2 group"
                   >
                     <span className="w-0.5 h-0.5 rounded-full bg-slate-600 group-hover:bg-accent transition-colors" />
-                    <span className="group-hover:translate-x-1 transition-transform duration-300">
+                    <span className="group-hover:translate-x-1 transition-transform duration-200 ease-out">
                       {item.label}
                     </span>
                   </a>
@@ -180,7 +191,7 @@ export const Footer = () => {
                     to={item.to}
                     className="text-slate-400 hover:text-accent transition-colors text-xs flex items-center gap-2 group"
                   >
-                    <span className="group-hover:translate-x-1 transition-transform duration-300">
+                    <span className="group-hover:translate-x-1 transition-transform duration-200 ease-out">
                       {item.label}
                     </span>
                     <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all text-accent" />
@@ -192,7 +203,7 @@ export const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-6 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-slate-500">
+        <div className="pt-6 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-slate-500 motion-safe:transition-colors motion-safe:duration-200">
           <p>{copyrightText}</p>
 
           <div className="flex items-center gap-6">
@@ -219,7 +230,7 @@ export const Footer = () => {
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
     </footer>
   );
 };

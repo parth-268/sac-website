@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ArrowLeft, Shield, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { SEO } from "@/components/SEO";
 import heroCampus from "@/assets/hero_campus.png"; // Ensure you have this asset or similar
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -17,8 +18,15 @@ const Login = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const reduceMotion = useReducedMotion();
+
   const { signIn, signUp, user, isEditor, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  const { data: settings } = useSiteSettings();
+  const sacLogoUrl = settings?.find(
+    (s) => s.setting_key === "sac_logo_url",
+  )?.setting_value;
 
   useEffect(() => {
     if (!authLoading && user && isEditor) {
@@ -63,9 +71,19 @@ const Login = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-primary to-transparent" />
 
         <div className="relative z-10 text-white max-w-lg space-y-6">
-          <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center text-primary font-bold text-3xl mb-8">
-            S
-          </div>
+          {sacLogoUrl ? (
+            <div className="mb-10 inline-flex items-center justify-center rounded-3xl bg-white/90 backdrop-blur-sm p-6 shadow-xl">
+              <img
+                src={sacLogoUrl}
+                alt="SAC Logo"
+                className="w-32 h-32 object-contain"
+              />
+            </div>
+          ) : (
+            <div className="mb-10 w-28 h-28 bg-accent rounded-3xl flex items-center justify-center text-primary font-bold text-5xl shadow-xl">
+              S
+            </div>
+          )}
           <h1 className="font-heading text-5xl font-bold leading-tight">
             Manage the <br />
             Student Voice.
@@ -81,17 +99,33 @@ const Login = () => {
       <div className="flex items-center justify-center p-6 lg:p-12 relative">
         <Button
           variant="ghost"
-          className="absolute top-6 left-6 gap-2"
+          className="absolute top-6 left-6 gap-2 bg-background/60 backdrop-blur-md hover:bg-background/80"
           onClick={() => navigate("/")}
         >
           <ArrowLeft className="w-4 h-4" /> Back to Home
         </Button>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={
+            reduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }
+          }
           className="w-full max-w-md space-y-8"
         >
+          {/* Mobile Logo */}
+          {!sacLogoUrl ? null : (
+            <div className="flex lg:hidden justify-center mb-2">
+              <div className="inline-flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-sm p-2 shadow-md">
+                <img
+                  src={sacLogoUrl}
+                  alt="SAC Logo"
+                  className="w-20 h-20 object-contain"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="text-center">
             <h2 className="font-heading text-3xl font-bold">
               {isSignUp ? "Create Account" : "Welcome Back"}
@@ -112,7 +146,7 @@ const Login = () => {
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="John Doe"
                   required={isSignUp}
-                  className="bg-secondary/50"
+                  className="bg-secondary/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
                 />
               </div>
             )}
@@ -125,7 +159,7 @@ const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@iimsambalpur.ac.in"
                 required
-                className="bg-secondary/50"
+                className="bg-secondary/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
               />
             </div>
 
@@ -137,7 +171,7 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="bg-secondary/50"
+                className="bg-secondary/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
               />
             </div>
 
@@ -155,7 +189,20 @@ const Login = () => {
                 "Sign In"
               )}
             </Button>
+
+            {isSignUp && (
+              <p className="text-[11px] text-muted-foreground text-center">
+                Accounts require admin approval before access.
+              </p>
+            )}
           </form>
+
+          {!isSignUp && (
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Shield className="w-4 h-4" />
+              Secure admin access
+            </div>
+          )}
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

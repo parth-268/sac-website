@@ -1,20 +1,64 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Linkedin, Mail, Users, Phone } from "lucide-react";
-import { useTeamMembers } from "@/hooks/useTeamData"; // Consolidated Hook
-import { motion } from "framer-motion";
+import { useTeamMembers, TeamMember } from "@/hooks/useTeamData";
+import { motion, AnimatePresence } from "framer-motion";
+import type { Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+// --- Configuration ---
+
+const ROLE_HIERARCHY: Record<string, number> = {
+  president: 1,
+  "vice president": 2,
+  treasurer: 3,
+  "general secretary": 4,
+  coordinator: 99,
+};
+
+// --- Animation Constants (SMOOTH & STABLE) ---
+
+const CARD_TRANSITION = {
+  type: "spring" as const,
+  stiffness: 220,
+  damping: 28,
+  mass: 0.9,
+};
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.15,
+    },
+  },
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: CARD_TRANSITION,
+  },
+};
+
 // --- Helper Components ---
+
 const FadeInImage = ({ src, alt }: { src?: string; alt: string }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   return (
-    <div className="w-full h-full relative bg-slate-100">
-      {!isLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center text-slate-300 z-0">
-          <Users className="h-8 w-8 opacity-20" />
-        </div>
-      )}
+    <div className="w-full h-full relative bg-slate-100 overflow-hidden">
+      <div
+        className={cn(
+          "absolute inset-0 flex items-center justify-center text-slate-300 z-0 transition-opacity duration-500",
+          isLoaded ? "opacity-0" : "opacity-100",
+        )}
+      >
+        <Users className="h-10 w-10 opacity-20" />
+      </div>
 
       {src ? (
         <img
@@ -22,68 +66,102 @@ const FadeInImage = ({ src, alt }: { src?: string; alt: string }) => {
           alt={alt}
           onLoad={() => setIsLoaded(true)}
           className={cn(
-            "w-full h-full object-cover transition-all duration-700 ease-out",
-            // Keep the grayscale-to-color effect on hover as it's a nice touch
-            "filter grayscale group-hover:grayscale-0",
-            "group-hover:scale-105",
+            "w-full h-full object-cover transition-all duration-700 ease-out will-change-transform",
+            "filter grayscale group-hover:grayscale-0 group-hover:scale-105",
             isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
           )}
           loading="lazy"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <Users className="h-10 w-10 text-slate-200" />
+        <div className="w-full h-full flex items-center justify-center bg-slate-50">
+          <Users className="h-12 w-12 text-slate-200" />
         </div>
       )}
     </div>
   );
 };
 
-const SocialLink = ({ href, icon: Icon, label }: any) => {
+const SocialLink = ({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string;
+  icon: any;
+  label: string;
+}) => {
   if (!href) return null;
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="p-1.5 text-slate-400 hover:text-accent hover:bg-slate-50 rounded-md transition-colors"
+      className="p-2 text-slate-400 hover:text-accent hover:bg-slate-50 rounded-full transition-all duration-200"
       aria-label={label}
+      title={label}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon className="h-4 w-4" />
     </a>
   );
 };
 
 export const Team = () => {
-  // Use new hook: automatically filters active members
   const { data: members, isLoading } = useTeamMembers();
+
+  // --- Data Processing ---
+  const sortedMembers = useMemo(() => {
+    if (!members) return [];
+
+    return members
+      .filter((m) => m.is_active)
+      .sort((a, b) => {
+        const batchA = a.academic_batch
+          ? parseInt(String(a.academic_batch))
+          : 9999;
+        const batchB = b.academic_batch
+          ? parseInt(String(b.academic_batch))
+          : 9999;
+
+        if (batchA !== batchB) return batchA - batchB;
+
+        const roleA =
+          ROLE_HIERARCHY[a.designation.toLowerCase()] ||
+          ROLE_HIERARCHY.coordinator;
+        const roleB =
+          ROLE_HIERARCHY[b.designation.toLowerCase()] ||
+          ROLE_HIERARCHY.coordinator;
+
+        if (roleA !== roleB) return roleA - roleB;
+
+        return a.name.localeCompare(b.name);
+      });
+  }, [members]);
 
   return (
     <section
       id="team"
       className="py-8 md:py-12 bg-slate-50 relative overflow-hidden"
     >
-      {/* --- VISIBLE BACKGROUND GRID --- */}
       <div
         className="absolute inset-0 pointer-events-none opacity-40"
         style={{
           backgroundImage: "radial-gradient(#94a3b8 1.5px, transparent 1.5px)",
           backgroundSize: "24px 24px",
-          opacity: 0.15, // Increased visibility
+          opacity: 0.15,
         }}
       />
       <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-50 via-slate-50/50 to-transparent" />
 
       <div className="container-wide mx-auto px-4 sm:px-6 relative z-10">
-        {/* --- Header (Left Aligned) --- */}
+        {/* --- Header --- */}
         <motion.div
-          initial={{ opacity: 0, y: 15 }}
+          initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-left max-w-3xl mb-12"
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="text-left max-w-3xl mb-12 md:mb-16"
         >
-          <div className="inline-flex items-center gap-2 mb-2 px-2.5 py-0.5 rounded-full bg-white border border-slate-200 shadow-sm">
+          <div className="inline-flex items-center gap-2 mb-3 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-sm">
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_#eab308]"></span>
             <span className="text-accent font-bold tracking-widest text-[10px] uppercase">
               The Council
@@ -104,84 +182,98 @@ export const Team = () => {
         {/* --- Team Grid --- */}
         <div className="min-h-[300px]">
           {isLoading ? (
-            // Skeleton Loader
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6">
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden h-full aspect-[3/4]"
+                  className="bg-white rounded-xl border border-slate-100 overflow-hidden h-full aspect-[3/4] shadow-sm"
                 >
-                  <div className="h-full w-full bg-slate-200 animate-pulse" />
+                  <div className="h-full w-full bg-slate-100 animate-pulse" />
                 </div>
               ))}
             </div>
-          ) : members && members.length > 0 ? (
-            // FIX: Removed containerVariants. Added independent animation to each card.
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-              {members.map((member, index) => (
-                <motion.div
-                  key={member.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-50px" }}
-                  transition={{ duration: 0.5, delay: index * 0.05 }} // Manual Stagger
-                  className="group flex flex-col bg-white rounded-xl border border-slate-100 overflow-hidden hover:shadow-lg hover:border-accent/30 transition-all duration-300 will-change-transform"
-                >
-                  {/* Image Area */}
-                  <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 border-b border-slate-50">
-                    <FadeInImage
-                      src={member.image_url || undefined}
-                      alt={member.name}
-                    />
-                  </div>
-
-                  {/* Info Area */}
-                  <div className="p-4 text-center flex flex-col flex-1">
-                    <div className="mb-3">
-                      <h3 className="font-heading text-sm md:text-base font-bold text-slate-900 truncate px-1">
-                        {member.name}
-                      </h3>
-                      <p className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-accent mt-1 truncate px-1">
-                        {member.designation}
-                      </p>
+          ) : sortedMembers.length > 0 ? (
+            <AnimatePresence mode="popLayout">
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-80px" }}
+                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6"
+              >
+                {sortedMembers.map((member) => (
+                  <motion.div
+                    key={member.id}
+                    layout
+                    variants={cardVariants}
+                    whileHover={{ scale: 1.03 }}
+                    transition={CARD_TRANSITION}
+                    style={{ willChange: "transform" }}
+                    className="group relative flex flex-col bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm hover:shadow-xl hover:border-accent/20 transition-colors duration-300"
+                  >
+                    <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 border-b border-slate-50">
+                      <FadeInImage
+                        src={member.image_url || undefined}
+                        alt={member.name}
+                      />
+                      <div className="absolute bottom-0 left-0 w-full h-1 bg-accent/0 group-hover:bg-accent transition-colors duration-300" />
                     </div>
 
-                    {/* Socials - Always Visible */}
-                    <div className="mt-auto pt-3 border-t border-slate-50 flex justify-center gap-2">
-                      {member.linkedin_url && (
-                        <SocialLink
-                          href={member.linkedin_url}
-                          icon={Linkedin}
-                          label="LinkedIn"
-                        />
-                      )}
-                      {member.email && (
-                        <SocialLink
-                          href={`mailto:${member.email}`}
-                          icon={Mail}
-                          label="Email"
-                        />
-                      )}
-                      {/* Optional Phone (if your schema supports it later) */}
-                      {member.phone && (
-                        <SocialLink
-                          href={`tel:${member.phone}`}
-                          icon={Phone}
-                          label="Phone"
-                        />
-                      )}
+                    <div className="p-4 flex flex-col flex-1 text-center">
+                      <div className="mb-2">
+                        <h3
+                          className="font-heading text-base md:text-lg font-bold text-slate-900 leading-snug truncate"
+                          title={member.name}
+                        >
+                          {member.name}
+                        </h3>
+                        <p
+                          className="text-xs font-bold uppercase tracking-wider text-accent mt-1.5 truncate"
+                          title={member.designation}
+                        >
+                          {member.designation}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto pt-2 border-t border-slate-50 flex justify-center gap-1">
+                        {member.linkedin_url && (
+                          <SocialLink
+                            href={member.linkedin_url}
+                            icon={Linkedin}
+                            label="LinkedIn"
+                          />
+                        )}
+                        {member.email && (
+                          <SocialLink
+                            href={`mailto:${member.email}`}
+                            icon={Mail}
+                            label="Email"
+                          />
+                        )}
+                        {member.phone && (
+                          <SocialLink
+                            href={`tel:${member.phone}`}
+                            icon={Phone}
+                            label="Phone"
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </AnimatePresence>
           ) : (
-            <div className="text-center py-16 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              <Users className="h-10 w-10 mx-auto text-slate-300 mb-3" />
-              <p className="text-slate-400 text-sm">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-slate-200 shadow-sm"
+            >
+              <Users className="h-12 w-12 text-slate-300 mb-4" />
+              <p className="text-slate-500 font-medium">
                 No active team members found.
               </p>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
