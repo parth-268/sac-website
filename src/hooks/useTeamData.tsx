@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
+// 1. DEFINITIVE TYPE
+// We explicitly add user_id so the UI knows who is an Admin
 export type TeamMember = {
   id: string;
   name: string;
@@ -9,14 +11,15 @@ export type TeamMember = {
   image_url: string | null;
   linkedin_url: string | null;
   email: string | null;
+  phone: string | null; // Standardized to 'phone'
   display_order: number;
   is_active: boolean;
   is_alumni: boolean;
   batch_year: string | null;
-  phone_number: string | null;
+  user_id: string | null; // <--- The Critical Missing Piece
 };
 
-// 1. Fetch Current Team (Not Alumni)
+// 2. Fetch Current Team
 export const useTeamMembers = () => {
   return useQuery({
     queryKey: ["team_members", "current"],
@@ -32,7 +35,7 @@ export const useTeamMembers = () => {
   });
 };
 
-// 2. Fetch Alumni (Is Alumni)
+// 3. Fetch Alumni
 export const useAlumniMembers = () => {
   return useQuery({
     queryKey: ["team_members", "alumni"],
@@ -41,14 +44,14 @@ export const useAlumniMembers = () => {
         .from("team_members")
         .select("*")
         .eq("is_alumni", true)
-        .order("batch_year", { ascending: false }); // Newest batch first
+        .order("batch_year", { ascending: false });
       if (error) throw error;
       return data as TeamMember[];
     },
   });
 };
 
-// 3. Mutations
+// 4. Mutations
 export const useTeamMutations = () => {
   const queryClient = useQueryClient();
   const invalidate = () => {
@@ -88,7 +91,6 @@ export const useTeamMutations = () => {
     onSuccess: invalidate,
   });
 
-  // Special Action: Archive to Alumni
   const moveToAlumni = useMutation({
     mutationFn: async ({
       id,
@@ -99,27 +101,18 @@ export const useTeamMutations = () => {
     }) => {
       const { error } = await supabase
         .from("team_members")
-        .update({
-          is_alumni: true,
-          is_active: false, // Automatically deactivate
-          batch_year: batch_year,
-        })
+        .update({ is_alumni: true, is_active: false, batch_year })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,
   });
 
-  // Special Action: Restore from Alumni
   const restoreToTeam = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("team_members")
-        .update({
-          is_alumni: false,
-          is_active: true,
-          batch_year: null,
-        })
+        .update({ is_alumni: false, is_active: true, batch_year: null })
         .eq("id", id);
       if (error) throw error;
     },

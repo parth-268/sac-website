@@ -43,7 +43,7 @@ const initialForm = {
   image_url: "",
   linkedin_url: "",
   email: "",
-  phone_number: "",
+  phone: "",
 };
 
 export default function AdminAlumni() {
@@ -95,7 +95,7 @@ export default function AdminAlumni() {
       image_url: member.image_url || "",
       linkedin_url: member.linkedin_url || "",
       email: member.email || "",
-      phone_number: member.phone_number || "",
+      phone: member.phone || "",
     });
     setEditingId(member.id);
     setIsDialogOpen(true);
@@ -206,9 +206,9 @@ export default function AdminAlumni() {
                                 <Mail className="w-3.5 h-3.5" />
                               </a>
                             )}
-                            {member.phone_number && (
+                            {member.phone && (
                               <a
-                                href={`tel:${member.phone_number}`}
+                                href={`tel:${member.phone}`}
                                 className="text-slate-400 hover:text-green-600"
                               >
                                 <Phone className="w-3.5 h-3.5" />
@@ -330,9 +330,9 @@ export default function AdminAlumni() {
                   <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
                     className="pl-9"
-                    value={form.phone_number}
+                    value={form.phone}
                     onChange={(e) =>
-                      setForm({ ...form, phone_number: e.target.value })
+                      setForm({ ...form, phone: e.target.value })
                     }
                     placeholder="+91..."
                   />

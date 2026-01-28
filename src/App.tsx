@@ -27,6 +27,8 @@ const AdminCommittees = lazy(() => import("@/pages/admin/Committees"));
 const AdminAbout = lazy(() => import("@/pages/admin/About"));
 const AdminMessages = lazy(() => import("@/pages/admin/Messages"));
 const AdminSettings = lazy(() => import("@/pages/admin/Settings"));
+const AdminProfile = lazy(() => import("@/pages/admin/Profile"));
+const AdminUsersDirectory = lazy(() => import("@/pages/admin/Users"));
 const AdminClubs = lazy(() => import("@/pages/admin/Clubs"));
 const AdminAlumni = lazy(() => import("@/pages/admin/Alumni"));
 const AdminReports = lazy(() => import("@/pages/admin/Reports"));
@@ -88,7 +90,7 @@ const App = () => (
                   <Route
                     index
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminDashboard />
                       </ProtectedRoute>
                     }
@@ -96,7 +98,7 @@ const App = () => (
                   <Route
                     path="team"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminTeam />
                       </ProtectedRoute>
                     }
@@ -104,7 +106,7 @@ const App = () => (
                   <Route
                     path="events"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminEvents />
                       </ProtectedRoute>
                     }
@@ -112,7 +114,7 @@ const App = () => (
                   <Route
                     path="committees"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminCommittees />
                       </ProtectedRoute>
                     }
@@ -120,7 +122,7 @@ const App = () => (
                   <Route
                     path="about"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminAbout />
                       </ProtectedRoute>
                     }
@@ -128,7 +130,7 @@ const App = () => (
                   <Route
                     path="messages"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminMessages />
                       </ProtectedRoute>
                     }
@@ -136,15 +138,31 @@ const App = () => (
                   <Route
                     path="settings"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="profile"
+                    element={
+                      <ProtectedRoute>
+                        <AdminProfile />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="users"
+                    element={
+                      <ProtectedRoute>
+                        <AdminUsersDirectory />
                       </ProtectedRoute>
                     }
                   />
                   <Route
                     path="clubs"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminClubs />
                       </ProtectedRoute>
                     }
@@ -152,7 +170,7 @@ const App = () => (
                   <Route
                     path="alumni"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminAlumni />
                       </ProtectedRoute>
                     }
@@ -160,7 +178,7 @@ const App = () => (
                   <Route
                     path="reports"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminReports />
                       </ProtectedRoute>
                     }
@@ -168,7 +186,7 @@ const App = () => (
                   <Route
                     path="hero-banners"
                     element={
-                      <ProtectedRoute requireEditor>
+                      <ProtectedRoute>
                         <AdminHeroBanners />
                       </ProtectedRoute>
                     }

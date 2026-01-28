@@ -1,21 +1,15 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole"; // ensure this import exists
 import { Loader2 } from "lucide-react";
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requireEditor?: boolean;
-}
-
-export const ProtectedRoute = ({
-  children,
-  requireEditor = false,
-}: ProtectedRouteProps) => {
-  const { user, isEditor, loading } = useAuth(); // Ensure your AuthContext provides 'loading'
+export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading: authLoading } = useAuth();
+  const { data: role, isLoading: roleLoading } = useUserRole();
   const location = useLocation();
 
-  // 1. SHOW LOADER WHILE CHECKING AUTH (Prevents glitchy redirects)
-  if (loading) {
+  // Wait for Auth AND Role to load
+  if (authLoading || roleLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -23,17 +17,15 @@ export const ProtectedRoute = ({
     );
   }
 
-  // 2. IF NOT LOGGED IN -> LOGIN PAGE
+  // Not Logged In
   if (!user) {
-    // Save where they were trying to go so we can redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 3. IF LOGGED IN BUT NOT EDITOR (and editor is required) -> HOME
-  if (requireEditor && !isEditor) {
+  // Logged In but NOT Admin
+  if (role !== "admin") {
     return <Navigate to="/" replace />;
   }
 
-  // 4. RENDER PAGE
   return <>{children}</>;
 };

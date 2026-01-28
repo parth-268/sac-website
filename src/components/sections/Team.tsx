@@ -163,9 +163,9 @@ export const Team = () => {
                         />
                       )}
                       {/* Optional Phone (if your schema supports it later) */}
-                      {member.phone_number && (
+                      {member.phone && (
                         <SocialLink
-                          href={`tel:${member.phone_number}`}
+                          href={`tel:${member.phone}`}
                           icon={Phone}
                           label="Phone"
                         />
