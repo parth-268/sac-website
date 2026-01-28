@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useMemo } from "react";
+import * as XLSX from "xlsx";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useTeamMembers,
@@ -21,27 +22,37 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus,
   Pencil,
   Trash2,
   Loader2,
+  Linkedin,
   Mail,
   Phone,
   ShieldCheck,
   GraduationCap,
-  KeyRound,
   UserCog,
-  Linkedin,
+  FileSpreadsheet,
+  Download,
+  CheckSquare,
+  XSquare,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 
-// Helper for initials
-const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
+// --- Types ---
 
-// Initial Form State
+interface ExcelRow {
+  Name: string;
+  Designation?: string;
+  Email?: string;
+  Phone?: string;
+  "LinkedIn URL"?: string;
+}
+
 const initialForm = {
   name: "",
   designation: "",
@@ -53,33 +64,181 @@ const initialForm = {
   is_active: true,
 };
 
+// Helper for initials
+const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
+
 export default function AdminTeam() {
+  // --- Hooks ---
   const { data: members, isLoading } = useTeamMembers();
   const { createMember, updateMember, deleteMember, moveToAlumni } =
     useTeamMutations();
   const { registerAdmin, resetUserPassword, revokeAdmin } =
     useAdminManagement();
 
-  // Dialog States
+  // --- State ---
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAccessOpen, setIsAccessOpen] = useState(false);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
 
-  // Selection States
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [formData, setFormData] = useState(initialForm);
 
-  // Admin Dialog States
   const [adminPassword, setAdminPassword] = useState("");
   const [adminTab, setAdminTab] = useState("grant");
   const [archiveBatch, setArchiveBatch] = useState(
     new Date().getFullYear().toString(),
   );
 
-  // --- HANDLERS ---
+  // --- Bulk Selection State ---
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // --- Excel Import Refs ---
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Helpers ---
+
+  // Check for duplicates (Name + Email)
+  const isDuplicate = (name: string, email: string, excludeId?: string) => {
+    return members?.some(
+      (m) =>
+        m.id !== excludeId &&
+        m.name.toLowerCase() === name.trim().toLowerCase() &&
+        (m.email || "").toLowerCase() === (email || "").trim().toLowerCase(),
+    );
+  };
+
+  const toggleSelection = (id: string) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const selectAll = () => {
+    if (members) {
+      setSelectedIds(new Set(members.map((m) => m.id)));
+    }
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  // --- Excel Handlers ---
+  const handleDownloadTemplate = () => {
+    const headers = [["Name", "Designation", "Email", "Phone", "LinkedIn URL"]];
+    const ws = XLSX.utils.aoa_to_sheet(headers);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Team_Import_Template.xlsx");
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: "binary" });
+        const wsName = wb.SheetNames[0];
+        const ws = wb.Sheets[wsName];
+
+        const data = XLSX.utils.sheet_to_json<ExcelRow>(ws);
+
+        if (data.length === 0) {
+          toast.error("File is empty");
+          return;
+        }
+
+        // --- Duplicate Filtering Logic ---
+        const validRows: ExcelRow[] = [];
+        let duplicatesCount = 0;
+        const processedKeys = new Set<string>(); // To check internal duplicates in the file
+
+        for (const row of data) {
+          if (!row.Name) continue;
+
+          const name = String(row.Name).trim();
+          const email = row.Email ? String(row.Email).trim() : "";
+          const uniqueKey = `${name.toLowerCase()}|${email.toLowerCase()}`;
+
+          // Check against DB and Internal File Duplicates
+          if (isDuplicate(name, email) || processedKeys.has(uniqueKey)) {
+            duplicatesCount++;
+            continue;
+          }
+
+          processedKeys.add(uniqueKey);
+          validRows.push(row);
+        }
+
+        if (validRows.length === 0) {
+          if (duplicatesCount > 0) {
+            toast.warning(
+              `All ${duplicatesCount} entries were duplicates and skipped.`,
+            );
+          } else {
+            toast.error("No valid entries found.");
+          }
+          return;
+        }
+
+        if (
+          !confirm(
+            `Found ${validRows.length} valid members.${duplicatesCount > 0 ? ` Skipped ${duplicatesCount} duplicates.` : ""} Import now?`,
+          )
+        )
+          return;
+
+        const promises = validRows.map((row) => {
+          return createMember.mutateAsync({
+            name: String(row.Name).trim(),
+            designation: row.Designation
+              ? String(row.Designation).trim()
+              : "Member",
+            email: row.Email ? String(row.Email).trim() : "",
+            phone: row.Phone ? String(row.Phone).trim() : "",
+            linkedin_url: row["LinkedIn URL"]
+              ? String(row["LinkedIn URL"]).trim()
+              : "",
+            image_url: "",
+            is_active: true,
+            display_order: 99,
+          });
+        });
+
+        await Promise.all(promises);
+
+        toast.success(`Successfully imported ${validRows.length} members!`);
+      } catch (err) {
+        console.error("Excel Import Error:", err);
+        toast.error("Failed to parse Excel file. Please check the format.");
+      } finally {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // --- CRUD Handlers ---
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Check for duplicates
+    if (isDuplicate(formData.name, formData.email, editingId || undefined)) {
+      toast.error(
+        "A member with this Name and Email already exists. Please verify.",
+      );
+      return;
+    }
+
     if (editingId) {
       await updateMember.mutateAsync({ id: editingId, ...formData });
     } else {
@@ -88,11 +247,42 @@ export default function AdminTeam() {
     setIsFormOpen(false);
   };
 
+  // Core logic extracted for reuse in Bulk Delete
+  const performDelete = async (member: TeamMember) => {
+    if (member.email) await revokeAdmin.mutateAsync(member.email);
+    await deleteMember.mutateAsync(member.id);
+  };
+
   const handleDelete = async (member: TeamMember) => {
     if (!confirm("Delete member? This revokes admin access immediately."))
       return;
-    if (member.email) await revokeAdmin.mutateAsync(member.email);
-    deleteMember.mutate(member.id);
+    await performDelete(member);
+  };
+
+  const handleBulkDelete = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to delete ${selectedIds.size} selected members?`,
+      )
+    )
+      return;
+
+    let count = 0;
+    const ids = Array.from(selectedIds);
+
+    // Process in parallel for speed
+    await Promise.all(
+      ids.map(async (id) => {
+        const member = members?.find((m) => m.id === id);
+        if (member) {
+          await performDelete(member);
+          count++;
+        }
+      }),
+    );
+
+    toast.success(`Deleted ${count} members.`);
+    setSelectedIds(new Set());
   };
 
   const handleArchive = async () => {
@@ -107,32 +297,82 @@ export default function AdminTeam() {
     toast.success("Member archived.");
   };
 
+  // Unified Admin Action Handler (Single & Bulk)
   const handleAdminAction = async () => {
-    if (!selectedMember || !adminPassword) return toast.error("Enter password");
+    if (!adminPassword) return toast.error("Enter password");
 
-    if (adminTab === "create") {
-      await registerAdmin.mutateAsync({
-        email: selectedMember.email,
-        password: adminPassword,
-        name: selectedMember.name,
-        memberId: selectedMember.id,
-      });
-    } else {
-      await resetUserPassword.mutateAsync({
-        email: selectedMember.email,
-        password: adminPassword,
-      });
+    // BULK MODE
+    if (selectedIds.size > 0 && !selectedMember) {
+      const ids = Array.from(selectedIds);
+      let successCount = 0;
+      let skippedCount = 0;
+
+      await Promise.all(
+        ids.map(async (id) => {
+          const member = members?.find((m) => m.id === id);
+          if (!member || !member.email) {
+            skippedCount++;
+            return;
+          }
+
+          try {
+            if (member.user_id) {
+              // Existing Admin -> Reset
+              await resetUserPassword.mutateAsync({
+                email: member.email,
+                password: adminPassword,
+              });
+            } else {
+              // New Admin -> Register
+              await registerAdmin.mutateAsync({
+                email: member.email,
+                password: adminPassword,
+                name: member.name,
+                memberId: member.id,
+              });
+            }
+            successCount++;
+          } catch (e) {
+            console.error(e);
+            skippedCount++;
+          }
+        }),
+      );
+
+      toast.success(
+        `Processed ${successCount} users.${skippedCount > 0 ? ` Skipped ${skippedCount} (no email/error).` : ""}`,
+      );
+      setSelectedIds(new Set());
     }
+    // SINGLE MODE
+    else if (selectedMember) {
+      if (adminTab === "create") {
+        await registerAdmin.mutateAsync({
+          email: selectedMember.email,
+          password: adminPassword,
+          name: selectedMember.name,
+          memberId: selectedMember.id,
+        });
+      } else {
+        await resetUserPassword.mutateAsync({
+          email: selectedMember.email,
+          password: adminPassword,
+        });
+      }
+    }
+
     setAdminPassword("");
     setIsAccessOpen(false);
+    setSelectedMember(null);
   };
 
-  // --- OPENERS ---
+  // --- UI Openers ---
   const openNew = () => {
     setFormData(initialForm);
     setEditingId(null);
     setIsFormOpen(true);
   };
+
   const openEdit = (m: TeamMember) => {
     setFormData({
       name: m.name,
@@ -147,11 +387,19 @@ export default function AdminTeam() {
     setEditingId(m.id);
     setIsFormOpen(true);
   };
+
   const openAccess = (m: TeamMember) => {
     if (!m.email) return toast.error("Member needs an email first");
     setSelectedMember(m);
     setAdminPassword("");
     setAdminTab(m.user_id ? "reset" : "create");
+    setIsAccessOpen(true);
+  };
+
+  const openBulkAccess = () => {
+    setSelectedMember(null); // Ensure we are in bulk mode
+    setAdminPassword("");
+    setAdminTab("create"); // Default view text
     setIsAccessOpen(true);
   };
 
@@ -167,20 +415,109 @@ export default function AdminTeam() {
       title="Team Management"
       description="Manage active members and control their dashboard access."
       actions={
-        <Button onClick={openNew} className="gap-2 shadow-sm">
-          <Plus className="w-4 h-4" /> Add Member
-        </Button>
+        <div className="flex gap-2 items-center">
+          {/* BULK ACTIONS TOOLBAR */}
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center gap-2 bg-purple-50 px-2 py-1 rounded-md border border-purple-100 animate-in fade-in slide-in-from-right-4">
+              <span className="text-sm font-medium text-purple-700 px-2">
+                {selectedIds.size} selected
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={openBulkAccess}
+                className="text-purple-700 hover:bg-purple-100 h-8"
+              >
+                <UserCog className="w-4 h-4 mr-2" /> Grant Access
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBulkDelete}
+                className="text-red-600 hover:bg-red-100 h-8"
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Delete
+              </Button>
+              <Separator orientation="vertical" className="h-4 bg-purple-200" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={deselectAll}
+                className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                title="Cancel Selection"
+              >
+                <XSquare className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* NORMAL ACTIONS */}
+              {members && members.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={selectAll}
+                  className="gap-2 bg-white hidden md:flex"
+                  title="Select All Members"
+                >
+                  <CheckSquare className="w-4 h-4 text-slate-500" />
+                </Button>
+              )}
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept=".xlsx, .xls, .csv"
+                onChange={handleFileUpload}
+              />
+
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-2 bg-white"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Import
+              </Button>
+
+              <Button onClick={openNew} className="gap-2 shadow-sm">
+                <Plus className="w-4 h-4" /> Add Member
+              </Button>
+            </>
+          )}
+        </div>
       }
     >
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={handleDownloadTemplate}
+          className="text-xs text-slate-500 hover:text-purple-600 flex items-center gap-1 underline transition-colors"
+        >
+          <Download className="w-3 h-3" /> Download Excel Template
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {members?.map((member) => (
           <Card
             key={member.id}
-            className={`group relative overflow-hidden transition-all duration-200 hover:shadow-md border-slate-200 ${!member.is_active ? "bg-slate-50/50" : "bg-white"}`}
+            className={`group relative overflow-hidden transition-all duration-200 border-slate-200 ${
+              !member.is_active ? "bg-slate-50/50" : "bg-white"
+            } ${selectedIds.has(member.id) ? "ring-2 ring-purple-500 border-transparent shadow-md" : "hover:shadow-md"}`}
           >
-            <CardContent className="p-5">
+            {/* Selection Checkbox Overlay */}
+            <div className="absolute top-3 left-3 z-10">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(member.id)}
+                onChange={() => toggleSelection(member.id)}
+                className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            <CardContent className="p-5 pl-10">
+              {" "}
+              {/* Added left padding for checkbox */}
               <div className="flex items-start gap-4">
-                {/* Avatar */}
                 <Avatar className="h-14 w-14 border-2 border-white shadow-sm ring-1 ring-slate-100">
                   <AvatarImage
                     src={member.image_url || ""}
@@ -192,7 +529,6 @@ export default function AdminTeam() {
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
-                  {/* Name & Badges Row */}
                   <div className="flex justify-between items-start mb-1">
                     <div className="pr-2 min-w-0">
                       <h3
@@ -209,7 +545,6 @@ export default function AdminTeam() {
                       </p>
                     </div>
 
-                    {/* Status Badges - Pinned Top Right */}
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <Badge
                         variant={member.is_active ? "default" : "secondary"}
@@ -218,7 +553,6 @@ export default function AdminTeam() {
                         {member.is_active ? "Active" : "Inactive"}
                       </Badge>
 
-                      {/* Admin Badge - Renders if user_id is present */}
                       {member.user_id && (
                         <Badge
                           variant="outline"
@@ -230,7 +564,6 @@ export default function AdminTeam() {
                     </div>
                   </div>
 
-                  {/* Contact Icons Row */}
                   <div className="flex items-center gap-3 mt-3">
                     <div
                       className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.email ? "text-slate-600 hover:border-slate-300 hover:bg-white" : "text-slate-300 cursor-not-allowed"}`}
@@ -255,7 +588,6 @@ export default function AdminTeam() {
               </div>
             </CardContent>
 
-            {/* Action Footer */}
             <div className="bg-slate-50/50 border-t border-slate-100 px-4 py-2.5 flex justify-between items-center">
               <div className="flex gap-2">
                 <Button
@@ -308,7 +640,7 @@ export default function AdminTeam() {
         ))}
       </div>
 
-      {/* --- DIALOGS (Kept logic same, just updated style slightly) --- */}
+      {/* --- DIALOGS --- */}
 
       {/* 1. Form Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
@@ -396,37 +728,70 @@ export default function AdminTeam() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. Access Dialog */}
+      {/* 2. Access Dialog (Supports Single & Bulk) */}
       <Dialog open={isAccessOpen} onOpenChange={setIsAccessOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Admin Access</DialogTitle>
+            <DialogTitle>
+              {selectedMember
+                ? `Admin Access: ${selectedMember.name}`
+                : "Bulk Admin Access"}
+            </DialogTitle>
             <DialogDescription>
-              Manage login for {selectedMember?.name}
+              {selectedMember
+                ? "Manage login credentials."
+                : `Set a common password for ${selectedIds.size} selected users.`}
             </DialogDescription>
           </DialogHeader>
-          <Tabs value={adminTab} onValueChange={setAdminTab}>
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="create">Grant</TabsTrigger>
-              <TabsTrigger value="reset">Reset</TabsTrigger>
-            </TabsList>
-            <div className="space-y-4">
-              <Label>
-                {adminTab === "create" ? "Create Password" : "New Password"}
-              </Label>
-              <Input
-                type="password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-              />
+
+          {/* If Single Member, Show Tabs. If Bulk, only show 'Set Password' view implicitly. */}
+          {selectedMember ? (
+            <Tabs value={adminTab} onValueChange={setAdminTab}>
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="create">Grant</TabsTrigger>
+                <TabsTrigger value="reset">Reset</TabsTrigger>
+              </TabsList>
+              <div className="space-y-4">
+                <Label>
+                  {adminTab === "create" ? "Create Password" : "New Password"}
+                </Label>
+                <Input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                />
+                <Button
+                  onClick={handleAdminAction}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  Confirm
+                </Button>
+              </div>
+            </Tabs>
+          ) : (
+            // BULK VIEW
+            <div className="space-y-4 pt-2">
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-3 rounded-md">
+                This will grant access to new users and reset passwords for
+                existing admins among the selected.
+              </div>
+              <div className="space-y-2">
+                <Label>Common Password</Label>
+                <Input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter secure password"
+                />
+              </div>
               <Button
                 onClick={handleAdminAction}
                 className="w-full bg-purple-600 hover:bg-purple-700"
               >
-                Confirm
+                Apply to All Selected
               </Button>
             </div>
-          </Tabs>
+          )}
         </DialogContent>
       </Dialog>
 
