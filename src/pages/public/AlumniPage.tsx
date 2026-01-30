@@ -13,8 +13,17 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Linkedin, Loader2, Filter } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: "easeOut" },
+  },
+};
 
 const AlumniPage = () => {
   // 1. Fetch Data using new consolidated hook
@@ -64,14 +73,15 @@ const AlumniPage = () => {
       <PageHero
         title="Alumni"
         highlight="Network"
-        description="Celebrating the legacy of our past council members."
-        pattern="waves"
+        description="Celebrating the legacy and continued impact of our past council members."
+        pattern="dots"
+        variant="centered"
       />
 
       <section className="py-4 md:py-8 flex-1">
         <div className="container-wide mx-auto px-6">
           {/* --- Controls Bar --- */}
-          <div className="flex flex-col md:flex-row gap-4 mb-10 items-center justify-between bg-white p-4 rounded-2xl border border-slate-100 shadow-sm sticky top-24 z-30">
+          <div className="flex flex-col md:flex-row gap-4 mb-10 items-center justify-between bg-background/80 backdrop-blur rounded-xl border border-border px-4 py-3 sticky top-24 z-30">
             {/* Search */}
             <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -86,7 +96,7 @@ const AlumniPage = () => {
             {/* Mobile Filter Toggle */}
             <Button
               variant="outline"
-              className="md:hidden w-full flex items-center gap-2"
+              className="md:hidden w-full h-9 flex items-center gap-2"
               onClick={() => setShowFilters(!showFilters)}
             >
               <Filter className="w-4 h-4" /> Filter by Batch
@@ -115,7 +125,7 @@ const AlumniPage = () => {
           {/* --- Results Area --- */}
           <div className="space-y-12">
             {isLoading ? (
-              <div className="flex justify-center py-20">
+              <div className="flex justify-center py-24">
                 <Loader2 className="h-8 w-8 animate-spin text-accent" />
               </div>
             ) : groupedAlumni.length === 0 ? (
@@ -136,8 +146,8 @@ const AlumniPage = () => {
               groupedAlumni.map(([batch, people]) => (
                 <div key={batch} className="scroll-mt-28">
                   {/* Batch Header */}
-                  <div className="flex items-center gap-4 mb-6">
-                    <h3 className="text-2xl font-heading font-bold text-slate-800">
+                  <div className="flex items-center gap-4 mb-5">
+                    <h3 className="text-xl md:text-2xl font-heading font-bold">
                       Batch of {batch}
                     </h3>
                     <div className="h-[1px] flex-1 bg-slate-100" />
@@ -147,13 +157,17 @@ const AlumniPage = () => {
                   </div>
 
                   {/* Members Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {people.map((person) => (
-                      <div
+                      <motion.div
                         key={person.id}
-                        className="flex items-start gap-3 p-4 rounded-xl border border-slate-100 bg-white hover:border-accent/30 hover:shadow-md transition-all duration-300 group"
+                        variants={fadeUp}
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true }}
+                        className="flex gap-3 p-3 rounded-xl border border-border bg-card hover:border-accent/40 transition-colors"
                       >
-                        <Avatar className="h-12 w-12 border border-slate-100 bg-slate-50 mt-1">
+                        <Avatar className="h-10 w-10 border border-border bg-muted">
                           <AvatarImage
                             src={person.image_url ?? undefined}
                             className="object-cover"
@@ -164,10 +178,10 @@ const AlumniPage = () => {
                         </Avatar>
 
                         <div className="min-w-0 flex-1">
-                          <h4 className="font-bold text-sm text-slate-900 truncate group-hover:text-accent transition-colors">
+                          <h4 className="font-semibold text-sm truncate group-hover:text-accent transition-colors">
                             {person.name}
                           </h4>
-                          <p className="text-[10px] uppercase font-bold text-slate-500 truncate mb-2">
+                          <p className="text-[11px] text-muted-foreground truncate mb-1">
                             {person.designation}
                           </p>
 
@@ -177,14 +191,14 @@ const AlumniPage = () => {
                               href={person.linkedin_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[10px] font-medium text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700"
                             >
                               <Linkedin className="w-3 h-3" />
                               Connect
                             </a>
                           )}
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 </div>

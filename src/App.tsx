@@ -40,7 +40,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       // Poll only where explicitly needed
-      refetchInterval: false,
+      refetchInterval: 1000 * 30, // 30s
 
       // Treat data as fresh for 30s (reduces refetch churn)
       staleTime: 1000 * 30,

@@ -1,19 +1,115 @@
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/layout/PageHero";
 import { useCommittees } from "@/hooks/useCommittees";
-import { Building2, icons, Loader2, ChevronRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { useCommitteeMembers } from "@/hooks/useCommitteeMembers";
+import { Building2, icons, Loader2, ChevronRight, X, Mail } from "lucide-react";
+import { motion, AnimatePresence, Variants } from "framer-motion";
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: "easeOut" },
+  },
+};
+
+const overlay: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.25, ease: "easeOut" },
+  },
+};
+
+const dialog: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: "easeOut" },
+  },
+  exit: {
+    opacity: 0,
+    y: 24,
+    transition: { duration: 0.2, ease: "easeIn" },
+  },
+};
 
 const CommitteesPage = () => {
   const { data: committees, isLoading } = useCommittees();
+  const [activeCommittee, setActiveCommittee] = useState<any | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (!committees) return;
+
+    const committeeId = searchParams.get("committee");
+    if (!committeeId) return;
+
+    const match = committees.find((c) => c.id === committeeId);
+    if (match) {
+      setActiveCommittee(match);
+    }
+  }, [committees, searchParams]);
+
+  useEffect(() => {
+    if (activeCommittee) {
+      setSearchParams({ committee: activeCommittee.id }, { replace: true });
+    } else {
+      const params = new URLSearchParams(searchParams);
+      params.delete("committee");
+      setSearchParams(params, { replace: true });
+    }
+  }, [activeCommittee]);
+
+  const { data: members, isLoading: membersLoading } = useCommitteeMembers(
+    activeCommittee?.id,
+  );
+
+  useEffect(() => {
+    if (!activeCommittee) return;
+
+    const focusable = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        'button, a[href], input, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    );
+
+    focusable[0]?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveCommittee(null);
+        return;
+      }
+
+      if (e.key === "Tab" && focusable.length > 0) {
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeCommittee]);
 
   const getIcon = (iconName: string) => {
     const Icon = icons[iconName as keyof typeof icons] as any;
     return Icon ? (
-      <Icon className="h-5 w-5" />
+      <Icon aria-hidden="true" className="h-5 w-5" />
     ) : (
-      <Building2 className="h-5 w-5" />
+      <Building2 aria-hidden="true" className="h-5 w-5" />
     );
   };
 
@@ -24,49 +120,187 @@ const CommitteesPage = () => {
       <PageHero
         title="Academic"
         highlight="Committees"
-        description="Ensuring academic excellence and seamless operations."
-        pattern="dots"
+        description="Committees that ensure academic excellence, governance, and seamless student coordination."
+        variant="centered"
       />
 
-      <section className="py-8 md:py-12">
+      <section className="py-10 md:py-14">
         <div className="container-wide mx-auto px-4">
           {isLoading ? (
-            <div className="flex justify-center">
+            <div className="flex justify-center py-20">
               <Loader2 className="w-6 h-6 animate-spin text-accent" />
             </div>
+          ) : committees?.length === 0 ? (
+            <div className="text-center text-muted-foreground py-20">
+              No committees available at the moment.
+            </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {committees?.map((committee, index) => (
-                <motion.div
-                  key={committee.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.05 }}
-                  className="group relative bg-card p-5 rounded-xl border border-border hover:border-accent/40 transition-all duration-300 hover:shadow-sm"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors shrink-0">
-                      {getIcon(committee.icon)}
-                    </div>
-                    <div>
-                      <h3 className="font-heading text-base font-bold mb-1 group-hover:text-accent transition-colors">
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: {},
+                visible: {
+                  transition: { staggerChildren: 0.06 },
+                },
+              }}
+              className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {committees
+                ?.filter((committee) => committee.is_active)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((committee) => (
+                  <motion.article
+                    key={committee.id}
+                    role="button"
+                    tabIndex={0}
+                    variants={fadeUp}
+                    whileHover={{ y: -2 }}
+                    transition={{ type: "tween", duration: 0.2 }}
+                    onClick={() => setActiveCommittee(committee)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        setActiveCommittee(committee);
+                      }
+                    }}
+                    className="group relative h-full rounded-2xl border border-border bg-card p-6 cursor-pointer hover:border-accent/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  >
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors">
+                        {getIcon(committee.icon)}
+                      </div>
+                      <h3 className="font-heading text-lg font-semibold leading-tight">
                         {committee.name}
                       </h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                        {committee.description}
-                      </p>
                     </div>
-                    <ChevronRight className="absolute right-4 top-6 w-4 h-4 text-muted-foreground opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                      {committee.description}
+                    </p>
+
+                    <div className="mt-5 flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        View details
+                      </span>
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="w-4 h-4 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all"
+                      />
+                    </div>
+                  </motion.article>
+                ))}
+            </motion.div>
           )}
         </div>
       </section>
+
+      {/* Committee Details Dialog */}
+      <AnimatePresence>
+        {activeCommittee && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            variants={overlay}
+            onClick={() => setActiveCommittee(null)}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+            {/* Dialog */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="committee-title"
+              variants={dialog}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full md:max-w-2xl max-h-[82vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background p-6 md:p-8 shadow-xl"
+            >
+              <button
+                onClick={() => setActiveCommittee(null)}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+                aria-label="Close dialog"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="flex-1 overflow-y-auto pr-1">
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                      {getIcon(activeCommittee.icon)}
+                    </div>
+                    <h2
+                      id="committee-title"
+                      className="font-heading text-xl font-semibold"
+                    >
+                      {activeCommittee.name}
+                    </h2>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {activeCommittee.description}
+                  </p>
+                  {activeCommittee.email && (
+                    <a
+                      href={`mailto:${activeCommittee.email}`}
+                      className="inline-flex items-center gap-2 mt-3 text-sm text-accent hover:underline"
+                    >
+                      <Mail aria-hidden="true" className="w-4 h-4" />
+                      {activeCommittee.email}
+                    </a>
+                  )}
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-semibold mb-3">
+                    Committee Members
+                  </h3>
+
+                  {membersLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-accent" />
+                  ) : members?.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Member details will be updated soon.
+                    </p>
+                  ) : (
+                    <ul className="divide-y border rounded-lg overflow-hidden">
+                      {members?.map((m) => (
+                        <li
+                          key={m.id}
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                        >
+                          {/* Left: Name & Designation */}
+                          <div>
+                            <div className="font-medium text-foreground">
+                              {m.name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {m.designation}
+                            </div>
+                          </div>
+
+                          {/* Right: Phone */}
+                          {m.phone && (
+                            <div className="text-xs text-muted-foreground sm:text-right">
+                              {m.phone}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>{" "}
+              {/* scroll area */}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Footer />
     </div>
   );
 };
+
 export default CommitteesPage;

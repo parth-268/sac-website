@@ -123,6 +123,7 @@ export interface Database {
           name: string;
           description: string;
           icon: string;
+          email: string | null;
           display_order: number;
           is_active: boolean;
           created_at: string;
@@ -133,6 +134,7 @@ export interface Database {
           name: string;
           description: string;
           icon?: string;
+          email?: string | null;
           display_order?: number;
           is_active?: boolean;
           created_at?: string;
@@ -143,8 +145,41 @@ export interface Database {
           name?: string;
           description?: string;
           icon?: string;
+          email?: string | null;
           display_order?: number;
           is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      committee_members: {
+        Row: {
+          id: string;
+          committee_id: string;
+          name: string;
+          designation: string;
+          phone: string | null;
+          display_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          committee_id: string;
+          name: string;
+          designation: string;
+          phone?: string | null;
+          display_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          committee_id?: string;
+          name?: string;
+          designation?: string;
+          phone?: string | null;
+          display_order?: number;
           created_at?: string;
           updated_at?: string;
         };

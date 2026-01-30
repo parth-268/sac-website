@@ -29,6 +29,7 @@ const ClubsPage = () => {
         highlight="Contigents"
         description="Explore the student-led bodies that fuel passion and leadership."
         pattern="dots"
+        variant="centered"
       />
 
       <section className="py-8 md:py-12">

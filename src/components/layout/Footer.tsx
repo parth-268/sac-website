@@ -47,10 +47,10 @@ export const Footer = () => {
   ];
 
   const quickLinks = [
-    { label: "About SAC", href: "#about" },
-    { label: "Leadership Team", href: "#team" },
-    { label: "Events Calendar", href: "#events" },
-    { label: "Contact Us", href: "#contact" },
+    { label: "About SAC", to: "/#about" },
+    { label: "Leadership Team", to: "/#team" },
+    { label: "Events Calendar", to: "/#events" },
+    { label: "Contact Us", to: "/#contact" },
   ];
 
   const resourceLinks = [
@@ -165,15 +165,15 @@ export const Footer = () => {
             <ul className="space-y-2">
               {quickLinks.map((item) => (
                 <li key={item.label}>
-                  <a
-                    href={item.href}
+                  <Link
+                    to={item.to}
                     className="text-slate-400 hover:text-accent transition-colors text-xs flex items-center gap-2 group"
                   >
                     <span className="w-0.5 h-0.5 rounded-full bg-slate-600 group-hover:bg-accent transition-colors" />
                     <span className="group-hover:translate-x-1 transition-transform duration-200 ease-out">
                       {item.label}
                     </span>
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
