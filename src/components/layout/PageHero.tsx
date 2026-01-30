@@ -8,7 +8,7 @@ interface PageHeroProps {
   highlight?: string;
   description: string;
   className?: string;
-  pattern?: "dots" | "grid" | "waves";
+  pattern?: "dots" | "grid" | "waves" | "mesh";
   variant?: "centered" | "editorial";
 }
 
@@ -35,6 +35,17 @@ export const PageHero = ({
   );
 
   const shouldReduceMotion = useReducedMotion();
+
+  const meshStyle =
+    variant === "editorial"
+      ? `
+      radial-gradient(800px 500px at 10% 25%, rgba(255,255,255,0.18), transparent 60%),
+      radial-gradient(600px 400px at 80% 30%, rgba(234,179,8,0.22), transparent 65%)
+    `
+      : `
+      radial-gradient(700px 500px at 50% 20%, rgba(255,255,255,0.16), transparent 40%),
+      radial-gradient(600px 400px at 50% 70%, rgba(234,179,8,0.18), transparent 45%)
+    `;
 
   return (
     <section
@@ -101,6 +112,31 @@ export const PageHero = ({
                     )`,
             }}
           />
+        )}
+
+        {/* VARIANT-AWARE MESH + DOT TEXTURE */}
+        {pattern === "mesh" && (
+          <>
+            {/* Mesh base */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{
+                backgroundImage: meshStyle,
+              }}
+            />
+
+            {/* Subtle dot texture */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 opacity-[0.08]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle, rgba(255,255,255,0.6) 1.5px, transparent 0.5px)",
+                backgroundSize: "22px 22px",
+              }}
+            />
+          </>
         )}
       </div>
 

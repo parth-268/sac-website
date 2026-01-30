@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useAlumniMembers,
@@ -28,7 +28,18 @@ import {
   Phone,
   Plus,
   GraduationCap,
+  AlertTriangle,
+  Upload,
 } from "lucide-react";
+
+let XLSXModule: typeof import("xlsx") | null = null;
+
+const getXLSX = async () => {
+  if (!XLSXModule) {
+    XLSXModule = await import("xlsx");
+  }
+  return XLSXModule;
+};
 
 // ✅ FIXED: Using 'phone'
 const initialForm = {
@@ -41,6 +52,37 @@ const initialForm = {
   phone: "",
 };
 
+type ExcelAlumniRow = {
+  name?: string;
+  designation?: string;
+  batch_year?: string | number;
+  email?: string;
+  phone?: string;
+  linkedin_url?: string;
+};
+
+const REQUIRED_FIELDS = ["name", "designation", "batch_year"];
+
+const downloadExcelTemplate = async () => {
+  const XLSX = await getXLSX();
+
+  const headers = [
+    {
+      name: "John Doe",
+      designation: "President, SAC",
+      batch_year: "2022",
+      email: "john.doe@example.com",
+      phone: "9876543210",
+      linkedin_url: "https://linkedin.com/in/johndoe",
+    },
+  ];
+
+  const worksheet = XLSX.utils.json_to_sheet(headers);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Alumni Template");
+  XLSX.writeFile(workbook, "alumni_upload_template.xlsx");
+};
+
 export default function AdminAlumni() {
   const { data: alumni, isLoading } = useAlumniMembers();
   const { restoreToTeam, deleteMember, updateMember, createMember } =
@@ -50,15 +92,72 @@ export default function AdminAlumni() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(initialForm);
+  const [excelErrors, setExcelErrors] = useState<string[]>([]);
+  const [excelPreview, setExcelPreview] = useState<ExcelAlumniRow[]>([]);
+  const [isParsingExcel, setIsParsingExcel] = useState(false);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [recentlyDeleted, setRecentlyDeleted] = useState<TeamMember[]>([]);
+
+  useEffect(() => {
+    if (recentlyDeleted.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setRecentlyDeleted([]);
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [recentlyDeleted]);
+
+  useEffect(() => {
+    if (recentlyDeleted.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setRecentlyDeleted([]);
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [recentlyDeleted]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
 
   const filteredAlumni = useMemo(() => {
     if (!alumni) return [];
     return alumni.filter(
       (m) =>
         m.name.toLowerCase().includes(search.toLowerCase()) ||
-        m.batch_year?.includes(search),
+        String(m.batch_year ?? "").includes(search),
     );
   }, [alumni, search]);
+
+  const isAllSelected =
+    filteredAlumni.length > 0 &&
+    filteredAlumni.every((m) => selectedIds.has(m.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (isAllSelected) {
+        return new Set();
+      }
+      const next = new Set(prev);
+      filteredAlumni.forEach((m) => {
+        next.add(m.id);
+      });
+      return next;
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +171,8 @@ export default function AdminAlumni() {
       });
     }
     setIsDialogOpen(false);
+    setForm(initialForm);
+    setEditingId(null);
   };
 
   const handleRestore = async (id: string, name: string) => {
@@ -93,6 +194,84 @@ export default function AdminAlumni() {
     setIsDialogOpen(true);
   };
 
+  const handleExcelUpload = async (file: File) => {
+    setExcelErrors([]);
+    setExcelPreview([]);
+    setIsParsingExcel(true);
+    try {
+      const XLSX = await getXLSX();
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<ExcelAlumniRow>(sheet);
+
+      const existingKeys = new Set(
+        alumni?.map((a) => `${a.name.toLowerCase()}-${a.batch_year}`),
+      );
+
+      const errors: string[] = [];
+      const validRows: ExcelAlumniRow[] = [];
+
+      rows.forEach((row, index) => {
+        const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
+
+        if (existingKeys.has(key)) {
+          errors.push(`Row ${index + 2}: Duplicate alumni (already exists)`);
+          return;
+        }
+
+        const rowErrors: string[] = [];
+
+        REQUIRED_FIELDS.forEach((field) => {
+          if (!row[field as keyof ExcelAlumniRow]) {
+            rowErrors.push(`Missing ${field}`);
+          }
+        });
+
+        if (row.batch_year && !String(row.batch_year).match(/^\d{4}$/)) {
+          rowErrors.push("Invalid batch year");
+        }
+
+        if (rowErrors.length > 0) {
+          rowErrors.forEach((err) => errors.push(`Row ${index + 2}: ${err}`));
+          return;
+        }
+
+        validRows.push(row);
+      });
+
+      setExcelErrors(errors);
+      setExcelPreview(validRows);
+    } finally {
+      setIsParsingExcel(false);
+    }
+  };
+
+  const handleBulkInsert = async () => {
+    const existingKeys = new Set(
+      alumni?.map((a) => `${a.name.toLowerCase()}-${a.batch_year}`),
+    );
+
+    for (const row of excelPreview) {
+      const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
+
+      if (existingKeys.has(key)) continue;
+
+      await createMember.mutateAsync({
+        name: String(row.name),
+        designation: String(row.designation),
+        batch_year: String(row.batch_year),
+        email: row.email || "",
+        phone: row.phone || "",
+        linkedin_url: row.linkedin_url || "",
+        is_alumni: true,
+        is_active: false,
+      });
+    }
+
+    setExcelPreview([]);
+  };
+
   if (isLoading)
     return (
       <AdminLayout title="Alumni">
@@ -105,94 +284,241 @@ export default function AdminAlumni() {
       title="Alumni Directory"
       description="Past council members."
       actions={
-        <Button
-          onClick={() => {
-            setForm(initialForm);
-            setEditingId(null);
-            setIsDialogOpen(true);
-          }}
-          className="gap-2"
-        >
-          <Plus className="w-4 h-4" /> Add Alumni
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={downloadExcelTemplate}
+          >
+            <GraduationCap className="w-4 h-4" />
+            Download Template
+          </Button>
+          <Button variant="outline" className="gap-2" asChild>
+            <label>
+              <Upload className="w-4 h-4" />
+              Upload Excel
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleExcelUpload(file);
+                    e.currentTarget.value = "";
+                  }
+                }}
+              />
+            </label>
+          </Button>
+
+          <Button
+            onClick={() => {
+              setForm(initialForm);
+              setEditingId(null);
+              setIsDialogOpen(true);
+            }}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" /> Add Alumni
+          </Button>
+        </div>
       }
     >
-      <div className="mb-6 relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input
-          placeholder="Search..."
-          className="pl-10 bg-white"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="mb-6 flex items-center gap-4">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Search..."
+            className="pl-10 bg-white"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              clearSelection();
+            }}
+          />
+        </div>
+
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            aria-label="Select all alumni"
+            checked={isAllSelected}
+            onChange={toggleSelectAll}
+            className="accent-blue-600"
+          />
+          Select all
+        </label>
       </div>
 
-      <div className="space-y-3">
-        {filteredAlumni.map((member) => (
-          <div
-            key={member.id}
-            className="group bg-white rounded-xl border border-slate-200 p-4 flex flex-col md:flex-row md:items-center gap-4"
-          >
-            <div className="flex items-center gap-4 min-w-[30%]">
-              <Avatar className="h-12 w-12 border border-slate-100">
-                <AvatarImage src={member.image_url || ""} />
-                <AvatarFallback className="bg-slate-100 text-slate-500 font-bold">
-                  {member.name.slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold">{member.name}</h3>
-                <p className="text-sm text-slate-500">{member.designation}</p>
-              </div>
-            </div>
-            <div className="flex items-center md:w-[15%]">
-              <Badge variant="secondary" className="gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5" /> Class of{" "}
-                {member.batch_year}
-              </Badge>
-            </div>
-            <div className="flex gap-3 text-slate-400 flex-1">
-              {/* Contact Icons Logic */}
-              <div
-                className={member.linkedin_url ? "text-blue-600" : "opacity-20"}
-              >
-                <Linkedin className="w-4 h-4" />
-              </div>
-              <div className={member.email ? "text-slate-600" : "opacity-20"}>
-                <Mail className="w-4 h-4" />
-              </div>
-              <div className={member.phone ? "text-slate-600" : "opacity-20"}>
-                <Phone className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 md:w-[20%]">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => openEdit(member)}
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRestore(member.id, member.name)}
-                className="text-blue-500 hover:bg-blue-50"
-              >
-                <Undo2 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => deleteMember.mutate(member.id)}
-                className="text-red-400 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+      {selectedIds.size > 0 && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm">
+          <span className="font-medium">{selectedIds.size} selected</span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={deleteMember.isPending}
+              onClick={() => {
+                if (confirm("Delete selected alumni?")) {
+                  const toDelete =
+                    alumni?.filter((a) => selectedIds.has(a.id)) ?? [];
+                  Promise.all(
+                    toDelete.map((m) => deleteMember.mutateAsync(m.id)),
+                  ).then(() => {
+                    setRecentlyDeleted(toDelete);
+                    clearSelection();
+                  });
+                }
+              }}
+              className="text-red-600"
+            >
+              Delete Selected
+            </Button>
+
+            <Button size="sm" variant="ghost" onClick={clearSelection}>
+              Clear
+            </Button>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {isParsingExcel && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Parsing Excel file…
+        </div>
+      )}
+
+      {excelErrors.length > 0 && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <div className="flex items-center gap-2 font-medium mb-2">
+            <AlertTriangle className="w-4 h-4" /> Excel Validation Errors
+          </div>
+          <ul className="list-disc pl-5 space-y-1">
+            {excelErrors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {excelPreview.length > 0 && (
+        <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-medium text-sm">
+              {excelPreview.length} valid alumni ready to import
+            </p>
+            <Button
+              size="sm"
+              onClick={handleBulkInsert}
+              disabled={createMember.isPending}
+            >
+              Import All
+            </Button>
+          </div>
+          <div className="max-h-48 overflow-y-auto text-sm text-slate-600">
+            {excelPreview.map((r, i) => (
+              <div key={i} className="flex justify-between py-1">
+                <span className="font-medium">{r.name}</span>
+                <span className="text-slate-500">
+                  {r.designation} • {r.batch_year}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filteredAlumni.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-slate-500">
+          <p className="font-medium">No alumni found</p>
+          <p className="text-sm mt-1">
+            Add alumni manually or upload an Excel file.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredAlumni.map((member) => (
+            <div
+              key={member.id}
+              className={`group rounded-xl border p-4 flex flex-col md:flex-row md:items-center gap-4
+              ${
+                selectedIds.has(member.id)
+                  ? "border-blue-400 bg-blue-50/40"
+                  : "border-slate-200 bg-white"
+              }`}
+            >
+              <div className="flex items-center gap-4 min-w-[30%]">
+                <input
+                  type="checkbox"
+                  aria-label={`Select alumni ${member.name}`}
+                  checked={selectedIds.has(member.id)}
+                  onChange={() => toggleSelect(member.id)}
+                  className="accent-blue-600"
+                />
+                <Avatar className="h-12 w-12 border border-slate-100">
+                  <AvatarImage src={member.image_url || ""} />
+                  <AvatarFallback className="bg-slate-100 text-slate-500 font-bold">
+                    {member.name.slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-semibold">{member.name}</h3>
+                  <p className="text-sm text-slate-500">{member.designation}</p>
+                </div>
+              </div>
+              <div className="flex items-center md:w-[15%]">
+                <Badge variant="secondary" className="gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5" /> Class of{" "}
+                  {member.batch_year}
+                </Badge>
+              </div>
+              <div className="flex gap-3 text-slate-400 flex-1">
+                {/* Contact Icons Logic */}
+                <div
+                  className={
+                    member.linkedin_url ? "text-blue-600" : "opacity-20"
+                  }
+                >
+                  <Linkedin className="w-4 h-4" />
+                </div>
+                <div className={member.email ? "text-slate-600" : "opacity-20"}>
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div className={member.phone ? "text-slate-600" : "opacity-20"}>
+                  <Phone className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 md:w-[20%]">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEdit(member)}
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRestore(member.id, member.name)}
+                  className="text-blue-500 hover:bg-blue-50"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteMember.mutate(member.id)}
+                  className="text-red-400 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -260,12 +586,50 @@ export default function AdminAlumni() {
                 }
               />
             </div>
-            <Button type="submit" className="w-full">
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={updateMember.isPending || createMember.isPending}
+            >
               Save
             </Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Undo Snackbar for bulk delete */}
+      {recentlyDeleted.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg flex items-center gap-4">
+          <span className="text-sm">
+            {recentlyDeleted.length} alumni deleted
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              for (const m of recentlyDeleted) {
+                await createMember.mutateAsync({
+                  ...m,
+                  id: undefined,
+                  is_alumni: true,
+                  is_active: false,
+                });
+              }
+              setRecentlyDeleted([]);
+            }}
+          >
+            Undo
+          </Button>
+        </div>
+      )}
+
+      {/*
+        Undo snackbar should auto-dismiss after 6s.
+      */}
+      {/*
+        Effect for auto-dismiss snackbar
+      */}
+      {/* (Effect is added below) */}
     </AdminLayout>
   );
 }
