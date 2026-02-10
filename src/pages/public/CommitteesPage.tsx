@@ -5,44 +5,75 @@ import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/layout/PageHero";
 import { useCommittees } from "@/hooks/useCommittees";
 import { useCommitteeMembers } from "@/hooks/useCommitteeMembers";
-import { Building2, icons, Loader2, ChevronRight, X, Mail } from "lucide-react";
-import { motion, AnimatePresence, Variants } from "framer-motion";
+import { Building2, icons, ChevronRight, X, Mail } from "lucide-react";
+import {
+  motion,
+  AnimatePresence,
+  Variants,
+  useReducedMotion,
+} from "framer-motion";
 
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 12 },
+const Skeleton = ({ className }: { className: string }) => (
+  <div
+    className={`animate-pulse rounded-md bg-muted ${className}`}
+    aria-hidden="true"
+  />
+);
+
+const fadeUp = (reduced: boolean): Variants => ({
+  hidden: { opacity: 0, y: reduced ? 0 : 12 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.35, ease: "easeOut" },
+    transition: reduced
+      ? { duration: 0.2 }
+      : { duration: 0.35, ease: "easeOut" },
   },
-};
+});
 
-const overlay: Variants = {
+const overlay = (reduced: boolean): Variants => ({
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { duration: 0.25, ease: "easeOut" },
+    transition: reduced
+      ? { duration: 0.15 }
+      : { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
   },
-};
+});
 
-const dialog: Variants = {
-  hidden: { opacity: 0, y: 24 },
+const dialog = (reduced: boolean): Variants => ({
+  hidden: { opacity: 0, y: reduced ? 0 : 12 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: "easeOut" },
+    transition: reduced
+      ? { duration: 0.2 }
+      : { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
   },
   exit: {
     opacity: 0,
-    y: 24,
-    transition: { duration: 0.2, ease: "easeIn" },
+    y: reduced ? 0 : 12,
+    transition: { duration: 0.2 },
   },
-};
+});
 
 const CommitteesPage = () => {
   const { data: committees, isLoading } = useCommittees();
   const [activeCommittee, setActiveCommittee] = useState<any | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const prefersReducedMotion = !!useReducedMotion();
+
+  useEffect(() => {
+    if (activeCommittee) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [activeCommittee]);
+
   useEffect(() => {
     if (!committees) return;
 
@@ -63,7 +94,7 @@ const CommitteesPage = () => {
       params.delete("committee");
       setSearchParams(params, { replace: true });
     }
-  }, [activeCommittee]);
+  }, [activeCommittee, searchParams, setSearchParams]);
 
   const { data: members, isLoading: membersLoading } = useCommitteeMembers(
     activeCommittee?.id,
@@ -127,8 +158,10 @@ const CommitteesPage = () => {
       <section className="py-10 md:py-14">
         <div className="container-wide mx-auto px-4">
           {isLoading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-accent" />
+            <div className="space-y-4 w-full max-w-sm">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
             </div>
           ) : committees?.length === 0 ? (
             <div className="text-center text-muted-foreground py-20">
@@ -154,7 +187,7 @@ const CommitteesPage = () => {
                     key={committee.id}
                     role="button"
                     tabIndex={0}
-                    variants={fadeUp}
+                    variants={fadeUp(prefersReducedMotion)}
                     whileHover={{ y: -2 }}
                     transition={{ type: "tween", duration: 0.2 }}
                     onClick={() => setActiveCommittee(committee)}
@@ -202,20 +235,26 @@ const CommitteesPage = () => {
             initial="hidden"
             animate="visible"
             exit="hidden"
-            variants={overlay}
+            variants={overlay(prefersReducedMotion)}
             onClick={() => setActiveCommittee(null)}
           >
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <motion.div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            />
 
             {/* Dialog */}
             <motion.div
               role="dialog"
               aria-modal="true"
               aria-labelledby="committee-title"
-              variants={dialog}
+              variants={dialog(prefersReducedMotion)}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-2xl max-h-[82vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background p-6 md:p-8 shadow-xl"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background p-6 md:p-8 shadow-xl overscroll-contain"
             >
               <button
                 onClick={() => setActiveCommittee(null)}
@@ -226,30 +265,43 @@ const CommitteesPage = () => {
               </button>
               <div className="flex-1 overflow-y-auto pr-1">
                 <div className="mb-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
+                  {/* Header */}
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary flex items-center justify-center">
                       {getIcon(activeCommittee.icon)}
                     </div>
-                    <h2
-                      id="committee-title"
-                      className="font-heading text-xl font-semibold"
-                    >
-                      {activeCommittee.name}
-                    </h2>
+
+                    <div className="flex-1">
+                      <h2
+                        id="committee-title"
+                        className="font-heading text-xl font-semibold leading-tight"
+                      >
+                        {activeCommittee.name}
+                      </h2>
+
+                      <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                        {activeCommittee.email && (
+                          <a
+                            href={`mailto:${activeCommittee.email}`}
+                            className="inline-flex items-center gap-1 text-accent hover:underline"
+                          >
+                            <Mail className="h-4 w-4" />
+                            {activeCommittee.email}
+                          </a>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {activeCommittee.description}
-                  </p>
-                  {activeCommittee.email && (
-                    <a
-                      href={`mailto:${activeCommittee.email}`}
-                      className="inline-flex items-center gap-2 mt-3 text-sm text-accent hover:underline"
-                    >
-                      <Mail aria-hidden="true" className="w-4 h-4" />
-                      {activeCommittee.email}
-                    </a>
-                  )}
+                  {/* About */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      About the Committee
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {activeCommittee.description}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="border-t pt-4">
@@ -258,7 +310,14 @@ const CommitteesPage = () => {
                   </h3>
 
                   {membersLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-accent" />
+                    <ul className="space-y-3">
+                      {[...Array(3)].map((_, i) => (
+                        <li key={i} className="px-4 py-3 border rounded-lg">
+                          <Skeleton className="h-4 w-32 mb-2" />
+                          <Skeleton className="h-3 w-24" />
+                        </li>
+                      ))}
+                    </ul>
                   ) : members?.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       Member details will be updated soon.

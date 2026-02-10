@@ -17,7 +17,7 @@ export const useCommittees = () => {
       const { data, error } = await supabase
         .from("committees")
         .select("*")
-        .order("display_order", { ascending: true });
+        .order("name", { ascending: true });
 
       if (error) throw error;
       return data as Committee[];

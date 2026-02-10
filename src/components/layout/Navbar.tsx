@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Menu, X, Settings, ChevronRight, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { cn } from "@/lib/utils";

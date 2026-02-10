@@ -6,24 +6,45 @@ import type {
   TablesUpdate,
 } from "@/integrations/supabase/types";
 
+export type ClubType = "club" | "contingent";
+
 type Club = Tables<"clubs">;
 type ClubInsert = TablesInsert<"clubs">;
 type ClubUpdate = TablesUpdate<"clubs">;
 
-export const useClubs = () => {
+interface UseClubsOptions {
+  type?: ClubType;
+  onlyActive?: boolean;
+}
+
+export const useClubs = (options?: UseClubsOptions) => {
+  const { type, onlyActive = false } = options ?? {};
+
   return useQuery({
-    queryKey: ["clubs"],
+    queryKey: ["clubs", type, onlyActive],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("clubs")
         .select("*")
-        .order("display_order", { ascending: true });
+        .order("name", { ascending: true });
 
+      if (type) {
+        query = query.eq("type", type);
+      }
+
+      if (onlyActive) {
+        query = query.eq("is_active", true);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
+
       return data as Club[];
     },
   });
 };
+
+/* ----------------- Mutations ----------------- */
 
 export const useCreateClub = () => {
   const queryClient = useQueryClient();

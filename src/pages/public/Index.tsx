@@ -7,13 +7,15 @@ import { Events } from "@/components/sections/Events";
 import { Contact } from "@/components/sections/Contact";
 import { SEO } from "@/components/SEO";
 import { useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const Index = () => {
   const location = useLocation();
+  const hasHandledScrollRef = useRef(false);
 
-  // --- SCROLL FIX START ---
   useEffect(() => {
+    hasHandledScrollRef.current = false;
+
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -27,32 +29,41 @@ const Index = () => {
       const elementTop =
         element.getBoundingClientRect().top + window.pageYOffset;
 
+      const targetScroll = elementTop - offset;
+
+      if (Math.abs(window.scrollY - targetScroll) < 4) return;
+
       window.scrollTo({
-        top: elementTop - offset,
+        top: targetScroll,
         behavior,
       });
     };
 
-    // Case 1: Hash exists on HOME route → normal scroll
+    // Case 1: Hash exists on HOME route → scroll to section
     if (location.pathname === "/" && location.hash) {
+      if (hasHandledScrollRef.current) return;
+      hasHandledScrollRef.current = true;
+
       const targetId = location.hash;
       const element = document.querySelector(targetId);
 
       if (element) {
         scrollWithOffset(element);
       } else {
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           const retryElement = document.querySelector(targetId);
           if (retryElement) {
             scrollWithOffset(retryElement);
           }
-        }, 100);
+        });
       }
     }
 
     // Case 2: Navigated from another route with hash meant for home
     else if (location.pathname !== "/" && location.hash) {
-      // Normalize to home + hash
+      if (hasHandledScrollRef.current) return;
+      hasHandledScrollRef.current = true;
+
       window.history.replaceState(null, "", `/${location.hash}`);
     }
 
@@ -61,7 +72,6 @@ const Index = () => {
       window.scrollTo({ top: 0, behavior });
     }
   }, [location.pathname, location.hash]);
-  // --- SCROLL FIX END ---
 
   return (
     <div className="min-h-screen bg-background selection:bg-accent selection:text-white">

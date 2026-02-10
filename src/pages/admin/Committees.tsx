@@ -49,7 +49,18 @@ export default function AdminCommittees() {
     <AdminLayout title="Committees">
       <div className="flex justify-between mb-6">
         <p className="text-muted-foreground">Manage committees and members</p>
-        <Button variant="gold" onClick={() => setOpen(true)}>
+        <Button
+          variant="gold"
+          onClick={() => {
+            setEditingCommittee(null);
+            setName("");
+            setDescription("");
+            setIsActive(true);
+            setEmail("");
+            setIcon("Users");
+            setOpen(true);
+          }}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Committee
         </Button>

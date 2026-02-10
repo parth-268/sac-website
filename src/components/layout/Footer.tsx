@@ -8,7 +8,7 @@ import {
   Heart,
   ArrowUpRight,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { motion, useReducedMotion } from "framer-motion";
 

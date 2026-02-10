@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/useAuth";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -21,7 +21,7 @@ import {
   Home, // Import Home Icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const navGroups = [
   {
@@ -73,6 +73,54 @@ export const AdminLayout = ({
   actions,
 }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const prefersReducedMotion = !!useReducedMotion();
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (!sidebarOpen || !drawerRef.current) return;
+
+    const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+    );
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    first?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSidebarOpen(false);
+        return;
+      }
+
+      if (e.key !== "Tab") return;
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [sidebarOpen]);
+
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,7 +133,7 @@ export const AdminLayout = ({
   return (
     <div className="min-h-screen bg-slate-50/50 flex">
       {/* --- DESKTOP SIDEBAR --- */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 fixed inset-y-0 z-30">
+      <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 fixed inset-y-0 z-30 overflow-hidden overscroll-contain">
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
@@ -102,7 +150,10 @@ export const AdminLayout = ({
           </Link>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-6 px-3 space-y-8 custom-scrollbar">
+        <nav
+          aria-label="Admin navigation"
+          className="flex-1 overflow-y-auto py-6 px-3 space-y-8 custom-scrollbar overscroll-contain"
+        >
           {navGroups.map((group) => (
             <div key={group.title}>
               <h3 className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
@@ -115,6 +166,7 @@ export const AdminLayout = ({
                     <Link
                       key={item.name}
                       to={item.href}
+                      aria-current={isActive ? "page" : undefined}
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200",
                         isActive
@@ -135,7 +187,7 @@ export const AdminLayout = ({
               </div>
             </div>
           ))}
-        </div>
+        </nav>
 
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3 mb-3">
@@ -175,11 +227,19 @@ export const AdminLayout = ({
               className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
             />
             <motion.aside
-              initial={{ x: "-100%" }}
+              ref={drawerRef}
+              initial={{ x: prefersReducedMotion ? 0 : "-100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed inset-y-0 left-0 w-72 bg-white z-50 lg:hidden flex flex-col shadow-2xl"
+              exit={{ x: prefersReducedMotion ? 0 : "-100%" }}
+              transition={
+                prefersReducedMotion
+                  ? { duration: 0.2 }
+                  : { type: "spring", stiffness: 260, damping: 32 }
+              }
+              className="fixed inset-y-0 left-0 w-72 bg-white z-50 lg:hidden flex flex-col shadow-2xl overscroll-contain max-h-[100dvh]"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Admin menu"
             >
               <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100">
                 <span className="font-heading font-bold text-lg">Menu</span>
@@ -204,7 +264,7 @@ export const AdminLayout = ({
                 </Link>
               </div>
 
-              <div className="flex-1 overflow-y-auto py-2 px-4 space-y-6">
+              <div className="flex-1 overflow-y-auto py-2 px-4 space-y-6 overscroll-contain">
                 {navGroups.map((group) => (
                   <div key={group.title}>
                     <h3 className="px-2 text-xs font-bold text-slate-400 mb-2">
@@ -291,7 +351,7 @@ export const AdminLayout = ({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full overscroll-contain">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="font-heading text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight">

@@ -9,6 +9,8 @@ export interface SiteSetting {
   setting_type: string;
 }
 
+export type CreateSiteSettingPayload = Omit<SiteSetting, "id">;
+
 // 1. Fetch All Settings
 export const useSiteSettings = () => {
   return useQuery({
@@ -45,6 +47,7 @@ export const useUpdateSiteSetting = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site_settings"] });
+      queryClient.invalidateQueries({ queryKey: ["site-setting"] });
     },
   });
 };
@@ -53,7 +56,7 @@ export const useUpdateSiteSetting = () => {
 export const useCreateSiteSetting = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (newSetting: any) => {
+    mutationFn: async (newSetting: CreateSiteSettingPayload) => {
       const { error } = await supabase
         .from("site_settings")
         .insert([newSetting]);
@@ -61,6 +64,49 @@ export const useCreateSiteSetting = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["site_settings"] });
+    },
+  });
+};
+
+export const ACTIVE_YEAR_KEY = "active_academic_year";
+
+/* ------------------ Queries ------------------ */
+
+export const useActiveAcademicYear = () => {
+  return useQuery({
+    queryKey: ["site-setting", ACTIVE_YEAR_KEY],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("setting_value")
+        .eq("setting_key", ACTIVE_YEAR_KEY)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.setting_value ?? null;
+    },
+  });
+};
+
+/* ------------------ Mutations ------------------ */
+
+export const useUpdateActiveAcademicYear = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (year: string) => {
+      const { error } = await supabase
+        .from("site_settings")
+        .update({ setting_value: year })
+        .eq("setting_key", ACTIVE_YEAR_KEY);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["site_settings"] });
+      queryClient.invalidateQueries({
+        queryKey: ["site-setting", ACTIVE_YEAR_KEY],
+      });
     },
   });
 };

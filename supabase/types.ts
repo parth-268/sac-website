@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1";
   };
-  graphql_public: {
-    Tables: {
-      [_ in never]: never;
-    };
-    Views: {
-      [_ in never]: never;
-    };
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json;
-          operationName?: string;
-          query?: string;
-          variables?: Json;
-        };
-        Returns: Json;
-      };
-    };
-    Enums: {
-      [_ in never]: never;
-    };
-    CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
   public: {
     Tables: {
       about_content: {
@@ -366,7 +341,6 @@ export type Database = {
           academic_year: string | null;
           banner_image_url: string | null;
           conducted_by_id: string | null;
-          conducted_by_name: string | null;
           conducted_by_type: string | null;
           created_at: string;
           description: string;
@@ -389,7 +363,6 @@ export type Database = {
           academic_year?: string | null;
           banner_image_url?: string | null;
           conducted_by_id?: string | null;
-          conducted_by_name?: string | null;
           conducted_by_type?: string | null;
           created_at?: string;
           description: string;
@@ -412,7 +385,6 @@ export type Database = {
           academic_year?: string | null;
           banner_image_url?: string | null;
           conducted_by_id?: string | null;
-          conducted_by_name?: string | null;
           conducted_by_type?: string | null;
           created_at?: string;
           description?: string;
@@ -842,9 +814,6 @@ export type CompositeTypes<
     : never;
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: ["admin", "editor"],

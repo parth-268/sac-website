@@ -40,10 +40,38 @@ const cardVariants = {
 };
 
 export const Events = () => {
-  const { data: events, isLoading } = useUpcomingEvents(3);
+  const { data: events, isLoading } = useUpcomingEvents();
 
   const getDay = (dateStr: string) => format(new Date(dateStr), "dd");
   const getMonth = (dateStr: string) => format(new Date(dateStr), "MMM");
+
+  const nearestEvents = events
+    ? [...events]
+        .sort(
+          (a, b) =>
+            new Date(a.event_date).getTime() - new Date(b.event_date).getTime(),
+        )
+        .slice(0, 3)
+    : [];
+
+  // Helper to check if a date string is today
+  const isToday = (dateStr: string): boolean => {
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    return dateStr === todayStr;
+  };
+
+  // Helper to get relative label for a date string
+  const getRelativeLabel = (dateStr: string): string | null => {
+    const today = new Date();
+    const eventDate = new Date(dateStr);
+    const diffTime = eventDate.getTime() - today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Tomorrow";
+    if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
+    return null;
+  };
 
   return (
     <section
@@ -107,7 +135,7 @@ export const Events = () => {
           <div className="flex justify-center py-14">
             <Loader2 className="h-8 w-8 animate-spin text-accent" />
           </div>
-        ) : events && events.length > 0 ? (
+        ) : nearestEvents.length > 0 ? (
           <AnimatePresence mode="popLayout">
             <motion.div
               variants={containerVariants}
@@ -116,7 +144,7 @@ export const Events = () => {
               viewport={{ once: true, margin: "-60px" }}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
             >
-              {events.slice(0, 3).map((event) => (
+              {nearestEvents.map((event) => (
                 <motion.div
                   key={event.id}
                   layout
@@ -124,13 +152,21 @@ export const Events = () => {
                   whileHover={{ scale: 1.02 }}
                   transition={CARD_TRANSITION}
                   style={{ willChange: "transform" }}
-                  className="group relative flex flex-col bg-white border border-slate-200/60 rounded-xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-colors"
+                  onClick={() => {
+                    window.location.href = "/events";
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") window.location.href = "/events";
+                  }}
+                  className="group relative flex flex-col bg-white border border-slate-200/60 rounded-xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
                   {/* Image */}
                   <div className="relative h-40 sm:h-44 overflow-hidden bg-slate-100">
-                    {event.image_url ? (
+                    {event.banner_image_url ? (
                       <img
-                        src={event.image_url}
+                        src={event.banner_image_url}
                         alt={event.title}
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                         loading="lazy"
@@ -151,11 +187,22 @@ export const Events = () => {
                       </span>
                     </div>
 
-                    {/* Status */}
-                    {event.is_upcoming && (
-                      <div className="absolute top-3 right-3 bg-accent text-white text-[9px] font-bold px-2 py-1 rounded-md uppercase tracking-wide shadow-sm">
-                        Upcoming
+                    {/* New badges for today or relative label */}
+                    {isToday(event.event_date) ? (
+                      <div className="absolute top-3 right-3 z-10 bg-accent text-white text-[10px] font-semibold rounded-full px-2 py-0.5 select-none whitespace-nowrap shadow-md ring-1 ring-white/40 pointer-events-none">
+                        {" "}
+                        Happening Today
                       </div>
+                    ) : (
+                      (() => {
+                        const label = getRelativeLabel(event.event_date);
+                        return label ? (
+                          <div className="absolute top-3 right-3 z-10 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full px-2 py-0.5 select-none whitespace-nowrap shadow-md ring-1 ring-amber-300/40 pointer-events-none">
+                            {" "}
+                            {label}
+                          </div>
+                        ) : null;
+                      })()
                     )}
                   </div>
 
@@ -166,16 +213,16 @@ export const Events = () => {
                     </h3>
 
                     <div className="flex flex-col gap-1.5 mb-3 text-[11px] text-slate-500 font-medium">
-                      {event.event_time && (
+                      {event.start_time && (
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 text-accent" />
-                          {event.event_time}
+                          {event.start_time}
                         </div>
                       )}
-                      {event.location && (
+                      {event.venue && (
                         <div className="flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-accent" />
-                          {event.location}
+                          {event.venue}
                         </div>
                       )}
                     </div>
@@ -185,10 +232,16 @@ export const Events = () => {
                     </p>
 
                     {/* Footer */}
-                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-accent transition-colors">
-                        View Details
-                      </span>
+                    <div className="mt-auto pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      {event.conducted_by_name && (
+                        <div className="text-[11px] text-slate-500 truncate">
+                          <span className="font-medium">Organised by:</span>{" "}
+                          <span className="font-semibold">
+                            {event.conducted_by_name}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="w-7 h-7 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-colors">
                         <ArrowRight className="w-3.5 h-3.5" />
                       </div>
