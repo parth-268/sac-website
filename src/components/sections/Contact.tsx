@@ -5,46 +5,81 @@ import { useSubmitContactForm } from "@/hooks/useContactInfo";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { toast } from "sonner";
 import { motion, type Transition } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import type {
+  InputHTMLAttributes,
+  TextareaHTMLAttributes,
+  ComponentType,
+} from "react";
 
 /* -------------------------------------------------------------------------- */
 /*                                Motion Config                                */
 /* -------------------------------------------------------------------------- */
 
 const FADE_UP: Transition = {
-  duration: 0.45,
-  ease: "easeOut",
+  duration: 0.35,
+  ease: [0.22, 1, 0.36, 1], // easeOutCubic
 };
 
 const STAGGER: Transition = {
-  staggerChildren: 0.06,
+  staggerChildren: 0.04,
 };
 
 /* -------------------------------------------------------------------------- */
 /*                              Floating Input                                 */
 /* -------------------------------------------------------------------------- */
 
-const FloatingInput = ({ label, id, className, textarea, ...props }: any) => {
-  const Component = textarea ? "textarea" : "input";
+type FloatingInputProps =
+  | ({
+      textarea?: false;
+    } & InputHTMLAttributes<HTMLInputElement> & {
+        label: string;
+        id: string;
+      })
+  | ({
+      textarea: true;
+    } & TextareaHTMLAttributes<HTMLTextAreaElement> & {
+        label: string;
+        id: string;
+      });
+
+const FloatingInput = (props: FloatingInputProps) => {
+  const { label, id, className, ...rest } = props;
+
+  const baseClassName = cn(
+    "peer w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl outline-none text-white placeholder-transparent",
+    "focus:border-accent focus:ring-2 focus:ring-accent/20 focus:bg-white/[0.08]",
+    "aria-[invalid=true]:border-red-400/60 aria-[invalid=true]:ring-red-400/20",
+    "transition-all duration-200 resize-none",
+    className,
+  );
 
   return (
     <div className="relative">
-      <Component
-        id={id}
-        placeholder=" "
-        className={cn(
-          "peer w-full px-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl outline-none text-white placeholder-transparent",
-          "focus:border-accent focus:ring-1 focus:ring-accent/20 focus:bg-white/[0.06]",
-          "transition-all duration-200 resize-none",
-          className,
-        )}
-        {...props}
-      />
+      {props.textarea ? (
+        <textarea
+          id={id}
+          placeholder=" "
+          className={baseClassName}
+          {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
+        />
+      ) : (
+        <input
+          id={id}
+          placeholder=" "
+          className={baseClassName}
+          {...(rest as InputHTMLAttributes<HTMLInputElement>)}
+        />
+      )}
+
       <label
         htmlFor={id}
-        className="absolute left-4 top-3.5 text-white/40 text-xs font-medium transition-all
-          peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-white/50
-          peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-accent"
+        className="absolute left-4 top-3.5 text-white/50 text-xs font-medium pointer-events-none
+          transition-all duration-200 ease-out
+          peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-accent
+          peer-[&:not(:placeholder-shown)]:top-1.5
+          peer-[&:not(:placeholder-shown)]:text-[10px]"
       >
         {label}
       </label>
@@ -56,6 +91,10 @@ const FloatingInput = ({ label, id, className, textarea, ...props }: any) => {
 /*                                  Contact                                    */
 /* -------------------------------------------------------------------------- */
 
+type TouchedFields = Partial<
+  Record<"name" | "email" | "subject" | "message", boolean>
+>;
+
 export const Contact = () => {
   const [formData, setFormData] = useState({
     name: "",
@@ -63,11 +102,20 @@ export const Contact = () => {
     subject: "",
     message: "",
   });
+  const [submitted, setSubmitted] = useState(false);
+  const [touched, setTouched] = useState<TouchedFields>({});
+
+  const prefersReducedMotion = useReducedMotion() ?? false;
 
   const { data: settings } = useSiteSettings();
   const submitContact = useSubmitContactForm();
 
-  const getVal = (key: string, fallback: string) =>
+  type ContactSettingKey =
+    | "contact_email"
+    | "contact_address"
+    | "contact_map_url";
+
+  const getVal = (key: ContactSettingKey, fallback: string) =>
     settings?.find((s) => s.setting_key === key)?.setting_value || fallback;
 
   const email = getVal("contact_email", "sac@iimsambalpur.ac.in");
@@ -88,11 +136,19 @@ export const Contact = () => {
   /*  })                                                                      */
   /* ---------------------------------------------------------------------- */
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    const form = e.currentTarget as HTMLFormElement & {
+      company?: { value: string };
+    };
+
+    // Honeypot check — silently ignore spam
+    if (form.company?.value) return;
+
     try {
       await submitContact.mutateAsync(formData);
-      toast.success("Message sent successfully");
+      setSubmitted(true);
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch {
       toast.error("Failed to send message");
@@ -172,16 +228,30 @@ export const Contact = () => {
               visible: { opacity: 1, y: 0 },
             }}
             transition={FADE_UP}
-            className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 md:p-6"
+            className="bg-white/[0.035] border border-white/10 rounded-2xl p-5 md:p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]"
           >
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-4"
+              aria-label="Contact form"
+            >
+              <input
+                type="text"
+                name="company"
+                tabIndex={-1}
+                autoComplete="off"
+                className="hidden"
+              />
               <div className="grid grid-cols-2 gap-4">
                 <FloatingInput
                   id="name"
                   label="Name"
                   value={formData.name}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, name: e.target.value })
+                  aria-invalid={touched.name && !formData.name}
+                  onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                  disabled={submitted}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.currentTarget.value })
                   }
                   required
                 />
@@ -190,8 +260,13 @@ export const Contact = () => {
                   label="Email"
                   type="email"
                   value={formData.email}
-                  onChange={(e: any) =>
-                    setFormData({ ...formData, email: e.target.value })
+                  aria-invalid={touched.email && !formData.email}
+                  onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+                  inputMode="email"
+                  autoComplete="email"
+                  disabled={submitted}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.currentTarget.value })
                   }
                   required
                 />
@@ -201,8 +276,11 @@ export const Contact = () => {
                 id="subject"
                 label="Subject"
                 value={formData.subject}
-                onChange={(e: any) =>
-                  setFormData({ ...formData, subject: e.target.value })
+                aria-invalid={touched.subject && !formData.subject}
+                onBlur={() => setTouched((t) => ({ ...t, subject: true }))}
+                disabled={submitted}
+                onChange={(e) =>
+                  setFormData({ ...formData, subject: e.currentTarget.value })
                 }
                 required
               />
@@ -213,8 +291,11 @@ export const Contact = () => {
                 textarea
                 rows={3}
                 value={formData.message}
-                onChange={(e: any) =>
-                  setFormData({ ...formData, message: e.target.value })
+                aria-invalid={touched.message && !formData.message}
+                onBlur={() => setTouched((t) => ({ ...t, message: true }))}
+                disabled={submitted}
+                onChange={(e) =>
+                  setFormData({ ...formData, message: e.currentTarget.value })
                 }
                 required
               />
@@ -222,8 +303,9 @@ export const Contact = () => {
               <Button
                 type="submit"
                 size="lg"
-                className="w-full h-11 bg-accent text-black hover:bg-white hover:text-black font-semibold text-sm"
-                disabled={submitContact.isPending}
+                className="w-full h-12 bg-accent text-black hover:bg-white hover:text-black font-semibold text-sm transition-all active:scale-[0.98]"
+                disabled={submitContact.isPending || submitted}
+                aria-busy={submitContact.isPending}
               >
                 {submitContact.isPending ? (
                   <Loader2 className="animate-spin w-4 h-4 mr-2" />
@@ -232,6 +314,20 @@ export const Contact = () => {
                 )}
                 Send Message
               </Button>
+
+              {submitted && (
+                <motion.div
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className="text-sm text-accent text-center pt-2"
+                >
+                  Thanks for reaching out — we’ll get back to you soon.
+                </motion.div>
+              )}
 
               {/* Future hint */}
               <p className="text-[10px] text-white/40 text-center">
@@ -249,7 +345,14 @@ export const Contact = () => {
 /*                               Contact Row                                   */
 /* -------------------------------------------------------------------------- */
 
-const ContactRow = ({ icon: Icon, label, value, href }: any) => {
+type ContactRowProps = {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  href?: string;
+};
+
+const ContactRow = ({ icon: Icon, label, value, href }: ContactRowProps) => {
   const Wrapper = href ? "a" : "div";
   const props = href ? { href, target: "_blank", rel: "noreferrer" } : {};
 

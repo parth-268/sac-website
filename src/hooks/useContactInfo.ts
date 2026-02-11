@@ -32,14 +32,12 @@ export const useContactSubmissions = () => {
 export const useSubmitContactForm = () => {
   return useMutation({
     mutationFn: async (submission: TablesInsert<"contact_submissions">) => {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("contact_submissions")
         .insert(submission)
-        .select()
         .single();
 
       if (error) throw error;
-      return data;
     },
   });
 };

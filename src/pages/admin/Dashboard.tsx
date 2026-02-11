@@ -20,6 +20,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveAcademicYear } from "@/hooks/useAcademicYears";
+import React from "react";
 
 const StatCard = ({
   title,
@@ -173,8 +174,18 @@ const AdminDashboard = () => {
   const { data: messages, isLoading: msgLoading } = useContactSubmissions();
   const { data: clubs, isLoading: clubsLoading } = useClubs();
 
+  // Only count upcoming events (today or later, published, not archived)
+  const todayISO = React.useMemo(
+    () => new Date().toISOString().split("T")[0],
+    [],
+  );
+  const upcomingEvents =
+    events?.filter(
+      (e) => e.event_date >= todayISO && e.is_published && !e.is_archived,
+    ) ?? [];
+
   const unreadMessages = messages?.filter((m) => !m.is_read).length || 0;
-  const upcomingEventsCount = events?.length || 0;
+  const upcomingEventsCount = upcomingEvents.length;
 
   // Time-based greeting
   const hour = new Date().getHours();
@@ -210,7 +221,7 @@ const AdminDashboard = () => {
     },
     {
       title: "Active Committees",
-      value: committees?.length || 0,
+      value: committees?.length ?? 0,
       icon: Building2,
       href: "/admin/committees",
       colorClass: "text-purple-600 group-hover:text-purple-700",
@@ -218,7 +229,7 @@ const AdminDashboard = () => {
     },
     {
       title: "Clubs",
-      value: clubs?.length || 0,
+      value: clubs?.length ?? 0,
       icon: Briefcase,
       href: "/admin/clubs",
       colorClass: "text-teal-600 group-hover:text-teal-700",
@@ -389,7 +400,9 @@ const AdminDashboard = () => {
         </h2>
         <article className="p-6 bg-white border border-slate-100 rounded-xl shadow-sm text-slate-600 text-sm">
           {/* Placeholder content for recent activity */}
-          <p>No recent activity to display.</p>
+          <p className="italic text-slate-400">
+            Activity tracking will appear here soon.
+          </p>
         </article>
       </section>
     </AdminLayout>
