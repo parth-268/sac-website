@@ -334,8 +334,10 @@ export type Database = {
       contact_submissions: {
         Row: {
           created_at: string;
+          deleted_at: string | null;
           email: string;
           id: string;
+          is_deleted: boolean;
           is_read: boolean;
           message: string;
           name: string;
@@ -343,8 +345,10 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
+          deleted_at?: string | null;
           email: string;
           id?: string;
+          is_deleted?: boolean;
           is_read?: boolean;
           message: string;
           name: string;
@@ -352,8 +356,10 @@ export type Database = {
         };
         Update: {
           created_at?: string;
+          deleted_at?: string | null;
           email?: string;
           id?: string;
+          is_deleted?: boolean;
           is_read?: boolean;
           message?: string;
           name?: string;
@@ -373,7 +379,6 @@ export type Database = {
           end_time: string | null;
           event_date: string;
           id: string;
-          is_active: boolean;
           is_archived: boolean;
           is_featured: boolean;
           is_published: boolean;
@@ -396,7 +401,6 @@ export type Database = {
           end_time?: string | null;
           event_date: string;
           id?: string;
-          is_active?: boolean;
           is_archived?: boolean;
           is_featured?: boolean;
           is_published?: boolean;
@@ -419,7 +423,6 @@ export type Database = {
           end_time?: string | null;
           event_date?: string;
           id?: string;
-          is_active?: boolean;
           is_archived?: boolean;
           is_featured?: boolean;
           is_published?: boolean;

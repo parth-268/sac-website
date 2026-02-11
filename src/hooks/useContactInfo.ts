@@ -1,16 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
+import type {
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+} from "@/integrations/supabase/types";
 
-type ContactSubmission = {
-  id: string;
-  name: string;
-  email: string;
-  subject: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-};
+type ContactSubmission = Tables<"contact_submissions">;
 
 // ... Removed old contact info hooks ...
 
@@ -21,6 +17,7 @@ export const useContactSubmissions = () => {
       const { data, error } = await supabase
         .from("contact_submissions")
         .select("*")
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -46,11 +43,34 @@ export const useMarkSubmissionRead = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (
+      payload: Pick<TablesUpdate<"contact_submissions">, "id">,
+    ) => {
       const { error } = await supabase
         .from("contact_submissions")
         .update({ is_read: true })
-        .eq("id", id);
+        .eq("id", payload.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contact_submissions"] });
+    },
+  });
+};
+
+export const useDeleteContactSubmissions = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase
+        .from("contact_submissions")
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+        })
+        .in("id", ids);
 
       if (error) throw error;
     },
