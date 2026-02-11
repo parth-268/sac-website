@@ -8,8 +8,6 @@ import type {
 
 type ContactSubmission = Tables<"contact_submissions">;
 
-// ... Removed old contact info hooks ...
-
 export const useContactSubmissions = () => {
   return useQuery({
     queryKey: ["contact_submissions"],

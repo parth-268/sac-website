@@ -21,48 +21,12 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-
-type GmailMessage = {
-  id: string;
-  threadId: string;
-  from: string;
-  subject: string;
-  date: string;
-  snippet: string;
-};
 
 const AdminMessages = () => {
   const { data: messages, isLoading } = useContactSubmissions();
   const markRead = useMarkSubmissionRead();
-
-  const [gmailMessages, setGmailMessages] = useState<GmailMessage[] | null>(
-    null,
-  );
-  const [gmailLoading, setGmailLoading] = useState(false);
-  const [gmailError, setGmailError] = useState<string | null>(null);
-
-  const fetchGmailMessages = async () => {
-    try {
-      setGmailLoading(true);
-      setGmailError(null);
-
-      const res = await fetch(
-        "https://pgggsaplngmehtjcdeku.supabase.co/functions/v1/gmail-inbox",
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch Gmail inbox");
-
-      const data = await res.json();
-      setGmailMessages(data.messages || []);
-    } catch (err) {
-      setGmailError("Gmail not connected");
-      setGmailMessages(null);
-    } finally {
-      setGmailLoading(false);
-    }
-  };
 
   const deleteMessages = async (ids: string[]) => {
     const { error } = await supabase
@@ -106,7 +70,11 @@ const AdminMessages = () => {
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -128,24 +96,9 @@ const AdminMessages = () => {
 
   const unreadCount = messages?.filter((m) => !m.is_read).length || 0;
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("gmail") === "connected") {
-      fetchGmailMessages();
-      params.delete("gmail");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
-
   return (
     <AdminLayout title="Messages">
-      <Tabs
-        defaultValue="website"
-        className="space-y-6"
-        onValueChange={(v) => {
-          if (v === "gmail" && !gmailMessages) fetchGmailMessages();
-        }}
-      >
+      <Tabs defaultValue="website" className="space-y-6">
         <TabsList>
           <TabsTrigger value="website">Website</TabsTrigger>
           <TabsTrigger value="gmail">Gmail</TabsTrigger>
@@ -358,90 +311,17 @@ const AdminMessages = () => {
 
         {/* GMAIL TAB */}
         <TabsContent value="gmail" className="space-y-6">
-          {!gmailMessages && !gmailLoading && (
-            <div className="text-center py-16 bg-card rounded-lg border border-border">
-              <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                Connect SAC Gmail
-              </h3>
-              <p className="text-muted-foreground mb-6">
-                View unread messages from the official SAC Gmail inbox.
-              </p>
-              <Button
-                onClick={async () => {
-                  const res = await fetch(
-                    "https://pgggsaplngmehtjcdeku.supabase.co/functions/v1/gmail-auth-url",
-                  );
-                  const data = await res.json();
-                  window.location.href = data.url;
-                }}
-              >
-                Connect Gmail
-              </Button>
-            </div>
-          )}
-
-          {gmailLoading && (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-accent" />
-            </div>
-          )}
-
-          {gmailMessages && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <p className="text-muted-foreground">
-                  Gmail Inbox ({gmailMessages.length} unread)
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchGmailMessages}
-                >
-                  Refresh
-                </Button>
-              </div>
-
-              {gmailMessages.length === 0 ? (
-                <div className="text-center py-12 bg-card rounded-lg border border-border">
-                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    No unread Gmail messages
-                  </p>
-                </div>
-              ) : (
-                gmailMessages.map((m) => (
-                  <div
-                    key={m.id}
-                    onClick={() =>
-                      window.open(
-                        `https://mail.google.com/mail/u/0/#inbox/${m.threadId}`,
-                        "_blank",
-                      )
-                    }
-                    className="p-4 bg-card rounded-lg border cursor-pointer transition hover:shadow-md"
-                  >
-                    <div className="flex justify-between">
-                      <div>
-                        <p className="font-medium text-foreground">{m.from}</p>
-                        <p className="text-sm font-semibold">{m.subject}</p>
-                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                          {m.snippet}
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {m.date}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {gmailError && (
-            <p className="text-sm text-destructive text-center">{gmailError}</p>
-          )}
+          <div className="flex flex-col items-center justify-center py-20 bg-card rounded-lg border border-border text-center">
+            <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">
+              Gmail Integration Coming Soon
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              We’re working on securely integrating the official SAC Gmail
+              inbox. This feature will be enabled in a future update once all
+              security and compliance checks are completed.
+            </p>
+          </div>
         </TabsContent>
       </Tabs>
 
