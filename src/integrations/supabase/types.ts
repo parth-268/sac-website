@@ -236,6 +236,7 @@ export type Database = {
           id: string;
           name: string;
           phone: string | null;
+          role: string;
           updated_at: string;
         };
         Insert: {
@@ -246,6 +247,7 @@ export type Database = {
           id?: string;
           name: string;
           phone?: string | null;
+          role?: string;
           updated_at?: string;
         };
         Update: {
@@ -256,6 +258,7 @@ export type Database = {
           id?: string;
           name?: string;
           phone?: string | null;
+          role?: string;
           updated_at?: string;
         };
         Relationships: [
@@ -277,7 +280,10 @@ export type Database = {
           icon: string;
           id: string;
           is_active: boolean;
+          junior_count: number;
+          logo_url: string | null;
           name: string;
+          senior_count: number;
           updated_at: string;
         };
         Insert: {
@@ -288,7 +294,10 @@ export type Database = {
           icon?: string;
           id?: string;
           is_active?: boolean;
+          junior_count?: number;
+          logo_url?: string | null;
           name: string;
+          senior_count?: number;
           updated_at?: string;
         };
         Update: {
@@ -299,7 +308,10 @@ export type Database = {
           icon?: string;
           id?: string;
           is_active?: boolean;
+          junior_count?: number;
+          logo_url?: string | null;
           name?: string;
+          senior_count?: number;
           updated_at?: string;
         };
         Relationships: [];

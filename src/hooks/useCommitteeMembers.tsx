@@ -1,57 +1,208 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type {
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+} from "@/integrations/supabase/types";
 
 /* ============================
    Types
 ============================ */
 
-export interface CommitteeMember {
-  id: string;
-  committee_id: string;
-  name: string;
-  designation: string;
-  phone: string | null;
-  created_at: string;
-  updated_at: string;
-  display_order: number;
-}
+export type CommitteeMemberRole = "senior" | "junior";
+
+export type CommitteeMember = Tables<"committee_members">;
+export type CommitteeMemberInsert = TablesInsert<"committee_members">;
+export type CommitteeMemberUpdate = TablesUpdate<"committee_members">;
 
 /* ============================
-   Fetch Members
+   Queries
 ============================ */
 
-export const useCommitteeMembers = (committeeId?: string) => {
+export const useCommitteeMembers = (
+  committeeId?: string,
+  role?: CommitteeMemberRole,
+) => {
   return useQuery({
-    queryKey: ["committee-members", committeeId],
+    queryKey: ["committee-members", committeeId, role],
+    enabled: !!committeeId,
+    staleTime: 30_000,
     queryFn: async () => {
-      if (!committeeId) return [];
-
-      const { data, error } = await supabase
+      let query = supabase
         .from("committee_members")
         .select("*")
-        .eq("committee_id", committeeId)
+        .eq("committee_id", committeeId!)
         .order("display_order", { ascending: true });
 
-      if (error) {
-        throw new Error(error.message);
+      if (role) {
+        query = query.eq("role", role);
       }
+
+      const { data, error } = await query;
+      if (error) throw error;
 
       return data as CommitteeMember[];
     },
-    enabled: !!committeeId, // important: prevents useless queries
-    staleTime: 30_000,
   });
 };
 
 /* ============================
-   Update Member Order (DnD)
+   Create / Update / Delete
 ============================ */
 
-interface UpdateOrderPayload {
-  draggedId: string;
-  targetIndex: number;
-  members: CommitteeMember[];
-}
+export const useCreateCommitteeMember = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: CommitteeMemberInsert) => {
+      const { data, error } = await supabase
+        .from("committee_members")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["committee-members", variables.committee_id],
+      });
+    },
+  });
+};
+
+export const useUpdateCommitteeMember = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...updates
+    }: CommitteeMemberUpdate & { id: string }) => {
+      const { data, error } = await supabase
+        .from("committee_members")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["committee-members", variables.committee_id],
+      });
+    },
+  });
+};
+
+export const useDeleteCommitteeMember = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      committee_id,
+    }: {
+      id: string;
+      committee_id: string;
+    }) => {
+      const { error } = await supabase
+        .from("committee_members")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      return committee_id;
+    },
+    onSuccess: (committee_id) => {
+      queryClient.invalidateQueries({
+        queryKey: ["committee-members", committee_id],
+      });
+    },
+  });
+};
+
+/* ============================
+   Bulk Insert / Replace Seniors
+============================ */
+
+export const useBulkInsertCommitteeMembers = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      committee_id,
+      members,
+    }: {
+      committee_id: string;
+      members: Omit<CommitteeMemberInsert, "committee_id">[];
+    }) => {
+      const { error } = await supabase.from("committee_members").insert(
+        members.map((m) => ({
+          ...m,
+          committee_id,
+        })),
+      );
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["committee-members", variables.committee_id],
+      });
+    },
+  });
+};
+
+export const useReplaceCommitteeSeniorMembers = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      committee_id,
+      members,
+    }: {
+      committee_id: string;
+      members: Omit<CommitteeMemberInsert, "committee_id" | "role">[];
+    }) => {
+      const { error: delError } = await supabase
+        .from("committee_members")
+        .delete()
+        .eq("committee_id", committee_id)
+        .eq("role", "senior");
+
+      if (delError) throw delError;
+
+      if (!members.length) return;
+
+      const { error: insError } = await supabase
+        .from("committee_members")
+        .insert(
+          members.map((m, index) => ({
+            ...m,
+            committee_id,
+            role: "senior",
+            display_order: index,
+          })),
+        );
+
+      if (insError) throw insError;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["committee-members", variables.committee_id, "senior"],
+      });
+    },
+  });
+};
+
+/* ============================
+   Reorder (DnD)
+============================ */
 
 export const useUpdateCommitteeMemberOrder = () => {
   const queryClient = useQueryClient();
@@ -59,123 +210,73 @@ export const useUpdateCommitteeMemberOrder = () => {
   return useMutation({
     onMutate: async () => {
       await queryClient.cancelQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "committee-members",
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey[0] === "committee-members",
       });
     },
-
-    mutationFn: async ({
-      draggedId,
-      targetIndex,
-      members,
-    }: UpdateOrderPayload) => {
-      // Create a shallow copy to avoid mutating cache data
-      const reordered = [...members];
-
-      const draggedIndex = reordered.findIndex((m) => m.id === draggedId);
-      if (draggedIndex === -1) {
-        throw new Error("Dragged member not found");
-      }
-
-      // Remove dragged item and insert at target position
-      const [moved] = reordered.splice(draggedIndex, 1);
-      reordered.splice(targetIndex, 0, moved);
-
-      // Reassign display_order sequentially
-      const updates = reordered.map((member, index) => ({
-        id: member.id,
-        committee_id: member.committee_id,
-        display_order: index,
-      }));
-
-      // Persist order using UPDATE (no INSERT path, avoids NULL committee_id issues)
-      for (const row of updates) {
-        const { error } = await supabase
-          .from("committee_members")
-          .update({ display_order: row.display_order })
-          .eq("id", row.id);
-
-        if (error) {
-          throw new Error(error.message);
-        }
-      }
-
-      return reordered[0]?.committee_id;
-    },
-
-    onSuccess: (committeeId) => {
-      if (!committeeId) return;
-
-      queryClient.invalidateQueries({
-        queryKey: ["committee-members", committeeId],
-      });
-    },
-  });
-};
-
-/* ============================
-   Bulk Insert (Excel Upload)
-============================ */
-
-interface BulkInsertPayload {
-  committee_id: string;
-  name: string;
-  designation: string;
-  phone?: string | null;
-}
-
-export const useBulkInsertCommitteeMembers = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (payload: BulkInsertPayload[]) => {
-      if (!payload.length) {
-        throw new Error("No members to insert");
-      }
-
-      const { error } = await supabase
-        .from("committee_members")
-        .insert(payload);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-    },
-    onSuccess: (_, payload) => {
-      const committeeId = payload?.[0]?.committee_id;
-      if (committeeId) {
-        queryClient.invalidateQueries({
-          queryKey: ["committee-members", committeeId],
-        });
-      }
-    },
-  });
-};
-
-/* ============================
-   Delete Member
-============================ */
-
-export const useDeleteCommitteeMember = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (memberId: string) => {
-      const { error } = await supabase
-        .from("committee_members")
-        .delete()
-        .eq("id", memberId);
-
-      if (error) {
-        throw new Error(error.message);
-      }
+    mutationFn: async (updates: { id: string; display_order: number }[]) => {
+      await Promise.all(
+        updates.map(({ id, display_order }) =>
+          supabase
+            .from("committee_members")
+            .update({ display_order })
+            .eq("id", id),
+        ),
+      );
+      return updates;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "committee-members",
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey[0] === "committee-members",
+      });
+    },
+  });
+};
+
+export const useReplaceCommitteeMembers = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      committee_id,
+      members,
+    }: {
+      committee_id: string;
+      members: {
+        name: string;
+        designation: string;
+        phone: string | null;
+        role: "senior" | "junior";
+        display_order: number;
+      }[];
+    }) => {
+      const { error: deleteError } = await supabase
+        .from("committee_members")
+        .delete()
+        .eq("committee_id", committee_id);
+
+      if (deleteError) throw deleteError;
+
+      if (members.length === 0) return;
+
+      const { error: insertError } = await supabase
+        .from("committee_members")
+        .insert(
+          members.map((m) => ({
+            committee_id,
+            ...m,
+          })),
+        );
+
+      if (insertError) throw insertError;
+    },
+    onSuccess: (_, { committee_id }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["committee-members", committee_id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["committees"],
       });
     },
   });

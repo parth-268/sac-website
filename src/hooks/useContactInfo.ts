@@ -15,7 +15,6 @@ export const useContactSubmissions = () => {
       const { data, error } = await supabase
         .from("contact_submissions")
         .select("*")
-        .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
