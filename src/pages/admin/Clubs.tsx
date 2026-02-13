@@ -355,7 +355,7 @@ const AdminClubs = () => {
                 Add {segment === "club" ? "Club" : "Contingent"}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl h-[90vh] p-0 flex flex-col">
+            <DialogContent className="max-w-2xl h-[85vh] p-0 flex flex-col rounded-lg">
               <DialogHeader className="px-6 pt-6">
                 <DialogTitle className="text-lg font-semibold">
                   {editingClub ? "Edit Club" : "Add New Club"}
@@ -676,7 +676,7 @@ const AdminClubs = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl h-[90vh] p-0 flex flex-col">
+        <DialogContent className="max-w-2xl h-[85vh] p-0 flex flex-col rounded-lg">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-lg font-semibold">
               Manage Members – {activeClubForMembers?.name}

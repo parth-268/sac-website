@@ -267,7 +267,7 @@ export default function AdminCommittees() {
         }}
       >
         <DialogContent
-          className="w-full max-w-2xl h-[90vh] max-h-[90vh] p-0 flex flex-col rounded-2xl"
+          className="w-full max-w-2xl h-[85vh] max-h-[85vh] p-0 flex flex-col rounded-2xl"
           aria-modal="true"
         >
           <DialogHeader className="flex items-center justify-between px-4 py-3 border-b">
@@ -366,50 +366,48 @@ export default function AdminCommittees() {
               </div>
             </div>
           </div>
-          <div className="border-t bg-background">
-            <div className="flex justify-end gap-3 px-4 py-3">
-              <Button
-                className="min-w-[160px]"
-                onClick={async () => {
-                  try {
-                    if (editingCommittee) {
-                      await updateCommittee.mutateAsync({
-                        id: editingCommittee.id,
-                        name,
-                        description,
-                        email,
-                        logo_url: logoUrl,
-                        is_active: isActive,
-                      });
-                    } else {
-                      await createCommittee.mutateAsync({
-                        name,
-                        description,
-                        email,
-                        logo_url: logoUrl,
-                        is_active: isActive,
-                      });
-                    }
-                    toast.success("Committee saved");
-                    resetForm();
-                    setDetailsOpen(false);
-                  } catch {
-                    toast.error("Failed to save committee");
+          <div className="border-t flex justify-end gap-3 px-4 py-3">
+            <Button
+              className="min-w-[160px]"
+              onClick={async () => {
+                try {
+                  if (editingCommittee) {
+                    await updateCommittee.mutateAsync({
+                      id: editingCommittee.id,
+                      name,
+                      description,
+                      email,
+                      logo_url: logoUrl,
+                      is_active: isActive,
+                    });
+                  } else {
+                    await createCommittee.mutateAsync({
+                      name,
+                      description,
+                      email,
+                      logo_url: logoUrl,
+                      is_active: isActive,
+                    });
                   }
-                }}
-                disabled={
-                  !name.trim() ||
-                  !description.trim() ||
-                  createCommittee.isPending ||
-                  updateCommittee.isPending
+                  toast.success("Committee saved");
+                  resetForm();
+                  setDetailsOpen(false);
+                } catch {
+                  toast.error("Failed to save committee");
                 }
-              >
-                {createCommittee.isPending || updateCommittee.isPending ? (
-                  <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                ) : null}
-                Save Committee
-              </Button>
-            </div>
+              }}
+              disabled={
+                !name.trim() ||
+                !description.trim() ||
+                createCommittee.isPending ||
+                updateCommittee.isPending
+              }
+            >
+              {createCommittee.isPending || updateCommittee.isPending ? (
+                <Loader2 className="animate-spin h-4 w-4 mr-2" />
+              ) : null}
+              Save Committee
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -423,13 +421,12 @@ export default function AdminCommittees() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl h-[90vh] p-0 flex flex-col">
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent className="max-w-2xl h-[85vh] p-0 flex flex-col rounded-lg">
+          <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
             <DialogTitle className="text-lg font-semibold">
               Manage Members – {editingCommittee?.name}
             </DialogTitle>
           </DialogHeader>
-
           <div className="flex-1 overflow-y-auto px-6 space-y-6 overscroll-contain">
             {editingCommittee?.id && (
               <MembersSection
@@ -527,10 +524,9 @@ function MembersSection({
           phone: m.phone,
         })),
     );
-    // setMembersDirty(false); // Removed as per instructions
   }, [members, setMembersDirty]);
 
-  // Excel upload logic (unchanged)
+  // Excel upload logic
   const uploadExcel = useCallback(
     async (file: File) => {
       if (!committeeId) {
@@ -592,10 +588,8 @@ function MembersSection({
           members: valid,
         });
 
-        // 🔥 CRITICAL FIX
         setMembersDirty(true);
 
-        // 🔥 Force local state to reflect Excel import
         setSeniorMembers(
           valid
             .filter((m) => m.role === "senior")
@@ -822,19 +816,23 @@ function MembersSection({
       <div
         ref={setNodeRef}
         style={style}
-        className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-2 items-center px-3 py-3 border-t bg-background"
+        className="
+          flex flex-col gap-2 rounded-lg border bg-background p-2 text-sm
+          sm:grid sm:grid-cols-[auto_1fr_1fr_1fr_auto_auto]
+          sm:rounded-none sm:border-0 sm:p-0 sm:border-t sm:text-base
+        "
       >
         <span
           {...attributes}
           {...listeners}
-          className="text-muted-foreground p-3 rounded-md cursor-grab active:scale-95 touch-none opacity-40 hover:opacity-100 transition-opacity"
+          className="hidden sm:inline-flex text-muted-foreground p-3 rounded-md cursor-grab active:scale-95 touch-none opacity-40 hover:opacity-100 transition-opacity"
           aria-label="Drag to reorder"
         >
           <GripVertical className="h-4 w-4" />
         </span>
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
           <Input
-            className="w-full min-w-0"
+            className="w-full min-w-0 h-9 sm:h-9"
             value={member.name}
             placeholder="Name"
             autoFocus={member.name === ""}
@@ -843,7 +841,7 @@ function MembersSection({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
           <Input
-            className="w-full min-w-0"
+            className="w-full min-w-0 h-9 sm:h-9"
             value={member.designation}
             placeholder="Designation"
             onChange={(e) => onEdit(member.uid, "designation", e.target.value)}
@@ -851,42 +849,67 @@ function MembersSection({
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
           <Input
-            className="w-full min-w-0"
+            className="w-full min-w-0 h-9 sm:h-9"
             value={member.phone ?? ""}
             placeholder="Phone"
             onChange={(e) => onEdit(member.uid, "phone", e.target.value)}
           />
         </div>
-        {/* Move button */}
-        {onMove && (
+        {/* Mobile-only action row */}
+        <div className="flex justify-end gap-1 sm:hidden">
+          {onMove && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onMove(member.uid)}
+            >
+              {role === "senior" ? (
+                <ArrowDown className="h-4 w-4" />
+              ) : (
+                <ArrowUp className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onRemove(member.uid)}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+        {/* Desktop action row */}
+        <div className="hidden sm:flex gap-2">
+          {onMove && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="opacity-60 hover:opacity-100"
+              type="button"
+              aria-label={moveLabel}
+              title={moveLabel}
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onMove(member.uid);
+              }}
+            >
+              {role === "senior" ? (
+                <ArrowDown className="h-4 w-4" />
+              ) : (
+                <ArrowUp className="h-4 w-4" />
+              )}
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"
-            className="opacity-60 hover:opacity-100"
-            type="button"
-            aria-label={moveLabel}
-            title={moveLabel}
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              onMove(member.uid);
-            }}
+            onClick={() => onRemove(member.uid)}
           >
-            {role === "senior" ? (
-              <ArrowDown className="h-4 w-4" />
-            ) : (
-              <ArrowUp className="h-4 w-4" />
-            )}
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
-        )}
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => onRemove(member.uid)}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
+        </div>
       </div>
     );
   }
@@ -957,18 +980,21 @@ function MembersSection({
                 strategy={verticalListSortingStrategy}
               >
                 {seniorMembers.map((m, idx) => (
-                  <SortableEditableRow
-                    key={m.uid}
-                    member={m}
-                    index={idx}
-                    role="senior"
-                    onEdit={(uid, field, value) =>
-                      handleEditMember("senior", uid, field, value)
-                    }
-                    onRemove={(uid) => handleRemoveMember("senior", uid)}
-                    onMove={(uid) => moveMember(uid, "senior", "junior")}
-                    moveLabel="Move to Junior"
-                  />
+                  <>
+                    <SortableEditableRow
+                      key={m.uid}
+                      member={m}
+                      index={idx}
+                      role="senior"
+                      onEdit={(uid, field, value) =>
+                        handleEditMember("senior", uid, field, value)
+                      }
+                      onRemove={(uid) => handleRemoveMember("senior", uid)}
+                      onMove={(uid) => moveMember(uid, "senior", "junior")}
+                      moveLabel="Move to Junior"
+                    />
+                    <div className="sm:hidden h-px bg-border my-2" />
+                  </>
                 ))}
               </SortableContext>
             </DndContext>
@@ -1027,18 +1053,21 @@ function MembersSection({
                 strategy={verticalListSortingStrategy}
               >
                 {juniorMembers.map((m, idx) => (
-                  <SortableEditableRow
-                    key={m.uid}
-                    member={m}
-                    index={idx}
-                    role="junior"
-                    onEdit={(uid, field, value) =>
-                      handleEditMember("junior", uid, field, value)
-                    }
-                    onRemove={(uid) => handleRemoveMember("junior", uid)}
-                    onMove={(uid) => moveMember(uid, "junior", "senior")}
-                    moveLabel="Promote to Senior"
-                  />
+                  <>
+                    <SortableEditableRow
+                      key={m.uid}
+                      member={m}
+                      index={idx}
+                      role="junior"
+                      onEdit={(uid, field, value) =>
+                        handleEditMember("junior", uid, field, value)
+                      }
+                      onRemove={(uid) => handleRemoveMember("junior", uid)}
+                      onMove={(uid) => moveMember(uid, "junior", "senior")}
+                      moveLabel="Promote to Senior"
+                    />
+                    <div className="sm:hidden h-px bg-border my-2" />
+                  </>
                 ))}
               </SortableContext>
             </DndContext>
