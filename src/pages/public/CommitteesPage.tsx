@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/layout/PageHero";
 import { useCommittees } from "@/hooks/useCommittees";
 import { useCommitteeMembers } from "@/hooks/useCommitteeMembers";
-import { Building2, icons, ChevronRight, X, Mail } from "lucide-react";
+import { Building2, icons, ChevronRight, X } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 import {
   motion,
   AnimatePresence,
@@ -59,10 +60,13 @@ const dialog = (reduced: boolean): Variants => ({
 
 const CommitteesPage = () => {
   const { data: committees, isLoading } = useCommittees();
-  const [activeCommittee, setActiveCommittee] = useState<any | null>(null);
+  const [activeCommittee, setActiveCommittee] =
+    useState<Tables<"committees"> | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const prefersReducedMotion = !!useReducedMotion();
+
+  const [membersTab, setMembersTab] = useState<"senior" | "junior">("senior");
 
   useEffect(() => {
     if (activeCommittee) {
@@ -144,6 +148,34 @@ const CommitteesPage = () => {
     );
   };
 
+  const seniorMembers = useMemo(
+    () => members?.filter((m) => m.role === "senior") ?? [],
+    [members],
+  );
+  const juniorMembers = useMemo(
+    () => members?.filter((m) => m.role === "junior") ?? [],
+    [members],
+  );
+  const visibleMembers =
+    membersTab === "senior" ? seniorMembers : juniorMembers;
+  // Handlers for dialog open/close
+  const handleOpenCommittee = useCallback((committee: Tables<"committees">) => {
+    setActiveCommittee(committee);
+  }, []);
+  const handleCloseDialog = useCallback(() => {
+    setActiveCommittee(null);
+  }, []);
+
+  useEffect(() => {
+    if (!activeCommittee) return;
+
+    if (seniorMembers.length > 0) {
+      setMembersTab("senior");
+    } else {
+      setMembersTab("junior");
+    }
+  }, [activeCommittee, seniorMembers.length]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -190,18 +222,26 @@ const CommitteesPage = () => {
                     variants={fadeUp(prefersReducedMotion)}
                     whileHover={{ y: -2 }}
                     transition={{ type: "tween", duration: 0.2 }}
-                    onClick={() => setActiveCommittee(committee)}
+                    onClick={() => handleOpenCommittee(committee)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
-                        setActiveCommittee(committee);
+                        handleOpenCommittee(committee);
                       }
                     }}
                     className="group relative h-full rounded-2xl border border-border bg-card p-6 cursor-pointer hover:border-accent/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                   >
                     <div className="mb-4 flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors">
-                        {getIcon(committee.icon)}
-                      </div>
+                      {committee.logo_url ? (
+                        <img
+                          src={committee.logo_url}
+                          alt={`${committee.name} logo`}
+                          className="w-11 h-11 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors">
+                          {getIcon(committee.icon)}
+                        </div>
+                      )}
                       <h3 className="font-heading text-lg font-semibold leading-tight">
                         {committee.name}
                       </h3>
@@ -236,7 +276,7 @@ const CommitteesPage = () => {
             animate="visible"
             exit="hidden"
             variants={overlay(prefersReducedMotion)}
-            onClick={() => setActiveCommittee(null)}
+            onClick={handleCloseDialog}
           >
             {/* Backdrop */}
             <motion.div
@@ -254,10 +294,10 @@ const CommitteesPage = () => {
               aria-labelledby="committee-title"
               variants={dialog(prefersReducedMotion)}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background p-6 md:p-8 shadow-xl overscroll-contain"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-6 md:px-6 md:py-8 shadow-xl overscroll-contain focus:outline-none"
             >
               <button
-                onClick={() => setActiveCommittee(null)}
+                onClick={handleCloseDialog}
                 className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
                 aria-label="Close dialog"
               >
@@ -266,35 +306,39 @@ const CommitteesPage = () => {
               <div className="flex-1 overflow-y-auto pr-1">
                 <div className="mb-6">
                   {/* Header */}
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary flex items-center justify-center">
-                      {getIcon(activeCommittee.icon)}
-                    </div>
+                  <div className="flex items-center gap-3">
+                    {activeCommittee.logo_url ? (
+                      <img
+                        src={activeCommittee.logo_url}
+                        alt={`${activeCommittee.name} logo`}
+                        className="w-10 h-10 shrink-0 rounded-xl object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 shrink-0 rounded-xl bg-secondary flex items-center justify-center">
+                        {getIcon(activeCommittee.icon)}
+                      </div>
+                    )}
 
-                    <div className="flex-1">
+                    <div className="flex flex-col">
                       <h2
                         id="committee-title"
                         className="font-heading text-xl font-semibold leading-tight"
                       >
                         {activeCommittee.name}
                       </h2>
-
-                      <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                        {activeCommittee.email && (
-                          <a
-                            href={`mailto:${activeCommittee.email}`}
-                            className="inline-flex items-center gap-1 text-accent hover:underline"
-                          >
-                            <Mail className="h-4 w-4" />
-                            {activeCommittee.email}
-                          </a>
-                        )}
-                      </div>
+                      {activeCommittee.email && (
+                        <a
+                          href={`mailto:${activeCommittee.email}`}
+                          className="text-xs text-accent mt-1"
+                        >
+                          {activeCommittee.email}
+                        </a>
+                      )}
                     </div>
                   </div>
 
                   {/* About */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 mt-4">
                     <h3 className="text-sm font-semibold text-foreground">
                       About the Committee
                     </h3>
@@ -318,39 +362,73 @@ const CommitteesPage = () => {
                         </li>
                       ))}
                     </ul>
-                  ) : members?.length === 0 ? (
+                  ) : !members || members.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      Member details will be updated soon.
+                      Committee members will be announced shortly.
                     </p>
                   ) : (
-                    <ul className="divide-y border rounded-lg overflow-hidden">
-                      {members?.map((m) => (
-                        <li
-                          key={m.id}
-                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                    <div className="space-y-4">
+                      {/* Tabs */}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setMembersTab("senior")}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
+                            membersTab === "senior"
+                              ? "bg-accent text-white border-accent"
+                              : "bg-background text-muted-foreground hover:text-foreground"
+                          }`}
                         >
-                          {/* Left: Name & Designation */}
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {m.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {m.designation}
-                            </div>
-                          </div>
+                          Senior Members ({seniorMembers.length})
+                        </button>
 
-                          {/* Right: Phone */}
-                          {m.phone && (
-                            <div className="text-xs text-muted-foreground sm:text-right">
-                              {m.phone}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                        <button
+                          type="button"
+                          onClick={() => setMembersTab("junior")}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
+                            membersTab === "junior"
+                              ? "bg-accent text-white border-accent"
+                              : "bg-background text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Junior Members ({juniorMembers.length})
+                        </button>
+                      </div>
+
+                      {/* List */}
+                      {visibleMembers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No {membersTab} members listed.
+                        </p>
+                      ) : (
+                        <ul className="divide-y border rounded-lg overflow-hidden">
+                          {visibleMembers.map((m) => (
+                            <li
+                              key={m.id}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                            >
+                              <div>
+                                <div className="font-medium text-foreground">
+                                  {m.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {m.designation}
+                                </div>
+                              </div>
+
+                              {m.phone && (
+                                <div className="text-xs text-muted-foreground sm:text-right">
+                                  {m.phone}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>{" "}
+              </div>
               {/* scroll area */}
             </motion.div>
           </motion.div>

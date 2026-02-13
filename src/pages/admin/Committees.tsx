@@ -163,6 +163,8 @@ export default function AdminCommittees() {
   const [email, setEmail] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [logoPath, setLogoPath] = useState<string | null>(null);
+  const [membersDirty, setMembersDirty] = useState(false);
+  const [savingMembers, setSavingMembers] = useState(false);
   const { uploadFile, uploading, deleteFile } = useFileUpload();
 
   const resetForm = () => {
@@ -174,6 +176,34 @@ export default function AdminCommittees() {
     setLogoUrl("");
     setLogoPath(null);
   };
+
+  // Helper to confirm closing members dialog if there are unsaved changes
+  const confirmCloseMembers = useCallback(() => {
+    if (!membersDirty) {
+      setMembersOpen(false);
+      return;
+    }
+
+    const shouldSave = window.confirm(
+      "You have unsaved changes. Save before closing?",
+    );
+
+    if (shouldSave) {
+      const form = document.getElementById(
+        "committee-members-form",
+      ) as HTMLFormElement | null;
+      form?.requestSubmit();
+    } else {
+      setMembersDirty(false);
+      setMembersOpen(false);
+    }
+  }, [membersDirty]);
+
+  useEffect(() => {
+    const handler = () => setMembersOpen(false);
+    window.addEventListener("members-saved", handler);
+    return () => window.removeEventListener("members-saved", handler);
+  }, []);
 
   return (
     <AdminLayout title="Committees">
@@ -385,7 +415,13 @@ export default function AdminCommittees() {
       </Dialog>
       <Dialog
         open={membersOpen}
-        onOpenChange={(value) => setMembersOpen(value)}
+        onOpenChange={(value) => {
+          if (value) {
+            setMembersOpen(true);
+          } else {
+            confirmCloseMembers();
+          }
+        }}
       >
         <DialogContent className="max-w-2xl h-[90vh] p-0 flex flex-col">
           <DialogHeader className="px-6 pt-6">
@@ -394,19 +430,29 @@ export default function AdminCommittees() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 space-y-6">
+          <div className="flex-1 overflow-y-auto px-6 space-y-6 overscroll-contain">
             {editingCommittee?.id && (
-              <MembersSection committeeId={editingCommittee.id} />
+              <MembersSection
+                committeeId={editingCommittee.id}
+                membersDirty={membersDirty}
+                setMembersDirty={setMembersDirty}
+                saving={savingMembers}
+                setSaving={setSavingMembers}
+              />
             )}
           </div>
 
           <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 rounded-b-md">
             <div className="flex justify-end gap-3 px-6 py-4">
-              <Button variant="outline" onClick={() => setMembersOpen(false)}>
+              <Button variant="outline" onClick={confirmCloseMembers}>
                 Cancel
               </Button>
-              <Button form="committee-members-form" type="submit">
-                Save Members
+              <Button
+                form="committee-members-form"
+                type="submit"
+                disabled={!membersDirty || savingMembers}
+              >
+                {savingMembers ? "Saving…" : "Save Members"}
               </Button>
             </div>
           </div>
@@ -416,9 +462,22 @@ export default function AdminCommittees() {
   );
 }
 
-function MembersSection({ committeeId }: { committeeId: string }) {
+function MembersSection({
+  committeeId,
+  membersDirty,
+  setMembersDirty,
+  saving,
+  setSaving,
+}: {
+  committeeId: string;
+  membersDirty: boolean;
+  setMembersDirty: (v: boolean) => void;
+  saving: boolean;
+  setSaving: (v: boolean) => void;
+}) {
   const { data: members, isLoading } = useCommitteeMembers(committeeId);
   const bulkInsert = useBulkInsertCommitteeMembers();
+  const updateCommittee = useUpdateCommittee();
 
   // Editable local state for members
   type EditableMember = {
@@ -430,8 +489,6 @@ function MembersSection({ committeeId }: { committeeId: string }) {
 
   const [seniorMembers, setSeniorMembers] = useState<EditableMember[]>([]);
   const [juniorMembers, setJuniorMembers] = useState<EditableMember[]>([]);
-  const [membersDirty, setMembersDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   // Sensors for dnd-kit
   const sensors = useSensors(
@@ -470,22 +527,8 @@ function MembersSection({ committeeId }: { committeeId: string }) {
           phone: m.phone,
         })),
     );
-
-    setMembersDirty(false);
-  }, [members]);
-
-  // Add member state
-  const [addMember, setAddMember] = useState<{
-    name: string;
-    designation: string;
-    phone: string;
-    role: "senior" | "junior";
-  }>({
-    name: "",
-    designation: "",
-    phone: "",
-    role: "junior",
-  });
+    // setMembersDirty(false); // Removed as per instructions
+  }, [members, setMembersDirty]);
 
   // Excel upload logic (unchanged)
   const uploadExcel = useCallback(
@@ -548,10 +591,37 @@ function MembersSection({ committeeId }: { committeeId: string }) {
           committee_id: committeeId,
           members: valid,
         });
+
+        // 🔥 CRITICAL FIX
+        setMembersDirty(true);
+
+        // 🔥 Force local state to reflect Excel import
+        setSeniorMembers(
+          valid
+            .filter((m) => m.role === "senior")
+            .map((m) => ({
+              uid: crypto.randomUUID(),
+              name: m.name,
+              designation: m.designation,
+              phone: m.phone,
+            })),
+        );
+
+        setJuniorMembers(
+          valid
+            .filter((m) => m.role === "junior")
+            .map((m) => ({
+              uid: crypto.randomUUID(),
+              name: m.name,
+              designation: m.designation,
+              phone: m.phone,
+            })),
+        );
+
         toast.success(`${valid.length} members imported`);
       }
     },
-    [bulkInsert, committeeId],
+    [bulkInsert, committeeId, setMembersDirty],
   );
 
   const downloadTemplate = useCallback(() => {
@@ -568,117 +638,112 @@ function MembersSection({ committeeId }: { committeeId: string }) {
     XLSX.writeFile(wb, "committee_members_template.xlsx");
   }, []);
 
-  // Add member locally
-  const handleAddMember = () => {
-    const { name, designation, phone, role } = addMember;
-    if (!name.trim() || !designation.trim()) return;
-    const newMember: EditableMember = {
-      uid: crypto.randomUUID(),
-      name: name.trim(),
-      designation: designation.trim(),
-      phone: phone ? phone : null,
-    };
-    if (role === "senior") {
-      setSeniorMembers((prev) => [...prev, newMember]);
-    } else {
-      setJuniorMembers((prev) => [...prev, newMember]);
-    }
-    setAddMember({
-      name: "",
-      designation: "",
-      phone: "",
-      role,
-    });
-    setMembersDirty(true);
-  };
-
   // Remove member locally
-  const handleRemoveMember = (role: "senior" | "junior", uid: string) => {
-    if (role === "senior") {
-      setSeniorMembers((prev) => prev.filter((m) => m.uid !== uid));
-    } else {
-      setJuniorMembers((prev) => prev.filter((m) => m.uid !== uid));
-    }
-    setMembersDirty(true);
-  };
+  const handleRemoveMember = useCallback(
+    (role: "senior" | "junior", uid: string) => {
+      if (role === "senior") {
+        setSeniorMembers((prev) => prev.filter((m) => m.uid !== uid));
+      } else {
+        setJuniorMembers((prev) => prev.filter((m) => m.uid !== uid));
+      }
+      setMembersDirty(true);
+    },
+    [setSeniorMembers, setJuniorMembers, setMembersDirty],
+  );
 
   // Edit member locally
-  const handleEditMember = (
-    role: "senior" | "junior",
-    uid: string,
-    field: keyof EditableMember,
-    value: string,
-  ) => {
-    if (role === "senior") {
-      setSeniorMembers((prev) =>
-        prev.map((m) => (m.uid === uid ? { ...m, [field]: value } : m)),
-      );
-    } else {
-      setJuniorMembers((prev) =>
-        prev.map((m) => (m.uid === uid ? { ...m, [field]: value } : m)),
-      );
-    }
-    setMembersDirty(true);
-  };
+  const handleEditMember = useCallback(
+    (
+      role: "senior" | "junior",
+      uid: string,
+      field: keyof EditableMember,
+      value: string,
+    ) => {
+      if (role === "senior") {
+        setSeniorMembers((prev) =>
+          prev.map((m) => (m.uid === uid ? { ...m, [field]: value } : m)),
+        );
+      } else {
+        setJuniorMembers((prev) =>
+          prev.map((m) => (m.uid === uid ? { ...m, [field]: value } : m)),
+        );
+      }
+      setMembersDirty(true);
+    },
+    [setSeniorMembers, setJuniorMembers, setMembersDirty],
+  );
 
   // Move member between roles
-  const moveMember = (
-    uid: string,
-    fromRole: "senior" | "junior",
-    toRole: "senior" | "junior",
-  ) => {
-    if (fromRole === toRole) return;
-    let memberToMove: EditableMember | undefined;
-    if (fromRole === "senior") {
-      setSeniorMembers((prev) => {
-        const idx = prev.findIndex((m) => m.uid === uid);
-        if (idx === -1) return prev;
-        memberToMove = prev[idx];
-        return prev.filter((m) => m.uid !== uid);
-      });
-      if (memberToMove) {
-        setJuniorMembers((prev) => [...prev, memberToMove!]);
+  const moveMember = useCallback(
+    (
+      uid: string,
+      fromRole: "senior" | "junior",
+      toRole: "senior" | "junior",
+    ) => {
+      if (fromRole === toRole) return;
+      let memberToMove: EditableMember | undefined;
+      if (fromRole === "senior") {
+        setSeniorMembers((prev) => {
+          const idx = prev.findIndex((m) => m.uid === uid);
+          if (idx === -1) return prev;
+          memberToMove = prev[idx];
+          return prev.filter((m) => m.uid !== uid);
+        });
+        if (memberToMove) {
+          setJuniorMembers((prev) => [...prev, memberToMove!]);
+        }
+      } else {
+        setJuniorMembers((prev) => {
+          const idx = prev.findIndex((m) => m.uid === uid);
+          if (idx === -1) return prev;
+          memberToMove = prev[idx];
+          return prev.filter((m) => m.uid !== uid);
+        });
+        if (memberToMove) {
+          setSeniorMembers((prev) => [...prev, memberToMove!]);
+        }
       }
-    } else {
-      setJuniorMembers((prev) => {
-        const idx = prev.findIndex((m) => m.uid === uid);
-        if (idx === -1) return prev;
-        memberToMove = prev[idx];
-        return prev.filter((m) => m.uid !== uid);
-      });
-      if (memberToMove) {
-        setSeniorMembers((prev) => [...prev, memberToMove!]);
-      }
-    }
-    setMembersDirty(true);
-  };
+      setMembersDirty(true);
+    },
+    [setSeniorMembers, setJuniorMembers, setMembersDirty],
+  );
 
   // Drag & drop reorder for senior
-  const onSeniorDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = seniorMembers.findIndex((m) => m.uid === active.id);
-    const newIndex = seniorMembers.findIndex((m) => m.uid === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    setSeniorMembers(arrayMove(seniorMembers, oldIndex, newIndex));
-    setMembersDirty(true);
-  };
+  const onSeniorDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = seniorMembers.findIndex((m) => m.uid === active.id);
+      const newIndex = seniorMembers.findIndex((m) => m.uid === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      setSeniorMembers(arrayMove(seniorMembers, oldIndex, newIndex));
+      setMembersDirty(true);
+    },
+    [seniorMembers, setSeniorMembers, setMembersDirty],
+  );
 
   // Drag & drop reorder for junior
-  const onJuniorDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = juniorMembers.findIndex((m) => m.uid === active.id);
-    const newIndex = juniorMembers.findIndex((m) => m.uid === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    setJuniorMembers(arrayMove(juniorMembers, oldIndex, newIndex));
-    setMembersDirty(true);
-  };
+  const onJuniorDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = juniorMembers.findIndex((m) => m.uid === active.id);
+      const newIndex = juniorMembers.findIndex((m) => m.uid === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      setJuniorMembers(arrayMove(juniorMembers, oldIndex, newIndex));
+      setMembersDirty(true);
+    },
+    [juniorMembers, setJuniorMembers, setMembersDirty],
+  );
 
   const replaceMembers = useReplaceCommitteeMembers();
 
-  const saveMembers = async () => {
-    if (!committeeId || saving || !membersDirty) return;
+  const saveMembers = useCallback(async () => {
+    if (!committeeId || saving) return;
+    if (!membersDirty) {
+      setSaving(false);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -703,16 +768,32 @@ function MembersSection({ committeeId }: { committeeId: string }) {
         committee_id: committeeId,
         members: payload,
       });
+      await updateCommittee.mutateAsync({
+        id: committeeId,
+        senior_count: seniorMembers.length,
+        junior_count: juniorMembers.length,
+      });
 
       toast.success("Members saved");
       setMembersDirty(false);
+      window.dispatchEvent(new Event("members-saved"));
     } catch (e) {
       console.error(e);
       toast.error("Failed to save members");
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    committeeId,
+    saving,
+    membersDirty,
+    seniorMembers,
+    juniorMembers,
+    replaceMembers,
+    updateCommittee,
+    setMembersDirty,
+    setSaving,
+  ]);
   // Editable row component
   function SortableEditableRow({
     member,
@@ -741,34 +822,41 @@ function MembersSection({ committeeId }: { committeeId: string }) {
       <div
         ref={setNodeRef}
         style={style}
-        className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-2 items-center px-3 py-3 border-t bg-background"
+        className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-2 items-center px-3 py-3 border-t bg-background"
       >
         <span
           {...attributes}
           {...listeners}
-          className="text-muted-foreground p-3 rounded-md cursor-grab active:scale-95 touch-none"
+          className="text-muted-foreground p-3 rounded-md cursor-grab active:scale-95 touch-none opacity-40 hover:opacity-100 transition-opacity"
           aria-label="Drag to reorder"
         >
           <GripVertical className="h-4 w-4" />
         </span>
-        <Input
-          className="w-full min-w-0"
-          value={member.name}
-          placeholder="Name"
-          onChange={(e) => onEdit(member.uid, "name", e.target.value)}
-        />
-        <Input
-          className="w-full min-w-0"
-          value={member.designation}
-          placeholder="Designation"
-          onChange={(e) => onEdit(member.uid, "designation", e.target.value)}
-        />
-        <Input
-          className="w-full min-w-0"
-          value={member.phone ?? ""}
-          placeholder="Phone"
-          onChange={(e) => onEdit(member.uid, "phone", e.target.value)}
-        />
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
+          <Input
+            className="w-full min-w-0"
+            value={member.name}
+            placeholder="Name"
+            autoFocus={member.name === ""}
+            onChange={(e) => onEdit(member.uid, "name", e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
+          <Input
+            className="w-full min-w-0"
+            value={member.designation}
+            placeholder="Designation"
+            onChange={(e) => onEdit(member.uid, "designation", e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
+          <Input
+            className="w-full min-w-0"
+            value={member.phone ?? ""}
+            placeholder="Phone"
+            onChange={(e) => onEdit(member.uid, "phone", e.target.value)}
+          />
+        </div>
         {/* Move button */}
         {onMove && (
           <Button
@@ -812,110 +900,37 @@ function MembersSection({ committeeId }: { committeeId: string }) {
         saveMembers();
       }}
     >
-      {/* Senior Members section */}
-      <div className="space-y-4 pb-6 border-b">
-        <div>
-          <h3 className="font-semibold text-lg mb-1">Committee Members</h3>
-          <p className="text-muted-foreground text-sm mb-3">
-            Add, reorder, or import committee members
-          </p>
-        </div>
-
-        {/* Manual Add */}
-        <div className="border rounded-lg p-4 bg-background mb-2">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
-            <Input
-              placeholder="Name"
-              value={addMember.name}
-              onChange={(e) =>
-                setAddMember((m) => ({ ...m, name: e.target.value }))
-              }
+      {/* Excel Upload & Template Download */}
+      <div className="flex w-full mb-2">
+        <div className="ml-auto flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-accent">
+            <Upload className="h-4 w-4" />
+            Upload Excel
+            <input
+              type="file"
+              hidden
+              accept=".xlsx,.csv"
+              onChange={(e) => e.target.files && uploadExcel(e.target.files[0])}
             />
-            <Input
-              placeholder="Designation"
-              value={addMember.designation}
-              onChange={(e) =>
-                setAddMember((m) => ({ ...m, designation: e.target.value }))
-              }
-            />
-            <Input
-              placeholder="Phone"
-              value={addMember.phone}
-              onChange={(e) =>
-                setAddMember((m) => ({ ...m, phone: e.target.value }))
-              }
-            />
-            <select
-              value={addMember.role}
-              onChange={(e) =>
-                setAddMember((m) => ({
-                  ...m,
-                  role: e.target.value as "senior" | "junior",
-                }))
-              }
-              className="border border-border rounded-md px-3 py-2 text-sm bg-background"
-            >
-              <option value="junior">Junior</option>
-              <option value="senior">Senior</option>
-            </select>
-            <Button
-              size="default"
-              className="w-full md:w-auto mt-2 md:mt-0"
-              disabled={!addMember.name.trim() || !addMember.designation.trim()}
-              onClick={handleAddMember}
-              type="button"
-            >
-              Add Member
-            </Button>
-          </div>
+          </label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={downloadTemplate}
+            className="text-xs"
+          >
+            Download Excel Template
+          </Button>
         </div>
-
-        {/* Excel Upload & Template Download */}
-        <div className="flex w-full">
-          <div className="ml-auto flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-accent">
-              <Upload className="h-4 w-4" />
-              Upload Excel
-              <input
-                type="file"
-                hidden
-                accept=".xlsx,.csv"
-                onChange={(e) =>
-                  e.target.files && uploadExcel(e.target.files[0])
-                }
-              />
-            </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={downloadTemplate}
-              className="text-xs"
-            >
-              Download Excel Template
-            </Button>
-          </div>
-        </div>
-        <span className="text-xs text-muted-foreground block">
-          You can import multiple members at once via Excel.
-        </span>
-
-        {/* Members List */}
-        {isLoading && (
-          <div className="text-sm text-muted-foreground p-4">
-            Loading members...
-          </div>
-        )}
-        {!isLoading && seniorMembers.length + juniorMembers.length === 0 && (
-          <div className="text-sm text-muted-foreground border border-dashed rounded-md p-4 text-center">
-            No members yet. Add manually or import via Excel.
-          </div>
-        )}
-
+      </div>
+      <span className="text-xs text-muted-foreground block mb-4">
+        Excel import supports both senior and junior roles.
+      </span>
+      {/* Members Section */}
+      <section className="space-y-3">
         {/* Senior Members */}
-        <div className="border rounded-md text-sm mt-2">
-          <div className="px-4 py-2 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/50 font-semibold text-sm flex items-center justify-between">
-            <span>Senior Members</span>
-          </div>
+        <div>
+          <h3 className="font-semibold text-lg mb-1">Senior Members</h3>
           {isLoading ? (
             <div className="flex flex-col gap-2 px-4 py-4">
               {[1, 2, 3].map((i) => (
@@ -958,20 +973,34 @@ function MembersSection({ committeeId }: { committeeId: string }) {
               </SortableContext>
             </DndContext>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full sm:w-auto"
+            onClick={() => {
+              setSeniorMembers((prev) => [
+                ...prev,
+                {
+                  uid: crypto.randomUUID(),
+                  name: "",
+                  designation: "",
+                  phone: null,
+                },
+              ]);
+              setMembersDirty(true);
+            }}
+          >
+            Add senior
+          </Button>
         </div>
-      </div>
-
-      {/* Junior Members section */}
-      <div className="space-y-3 mt-6">
-        <h3 className="text-sm font-semibold">Junior Members</h3>
-        <p className="text-xs text-muted-foreground">
-          Only total count is required for junior members.
-        </p>
+        <div className="border-t" />
         {/* Junior Members */}
-        <div className="border rounded-md text-sm">
-          <div className="px-4 py-2 bg-muted/60 backdrop-blur supports-[backdrop-filter]:bg-muted/50 font-semibold text-sm flex items-center justify-between">
-            <span>Junior Members</span>
-          </div>
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Junior Members</h3>
+          <p className="text-xs text-muted-foreground">
+            Only total count is required for junior members.
+          </p>
           {isLoading ? (
             <div className="flex flex-col gap-2 px-4 py-4">
               {[1, 2, 3].map((i) => (
@@ -1014,8 +1043,28 @@ function MembersSection({ committeeId }: { committeeId: string }) {
               </SortableContext>
             </DndContext>
           )}
-        </div>
-      </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full sm:w-auto"
+            onClick={() => {
+              setJuniorMembers((prev) => [
+                ...prev,
+                {
+                  uid: crypto.randomUUID(),
+                  name: "",
+                  designation: "",
+                  phone: null,
+                },
+              ]);
+              setMembersDirty(true);
+            }}
+          >
+            Add junior
+          </Button>
+        </section>
+      </section>
     </form>
   );
 }
