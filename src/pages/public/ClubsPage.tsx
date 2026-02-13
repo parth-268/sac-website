@@ -238,7 +238,7 @@ const ClubsPage = () => {
               aria-labelledby="club-title"
               variants={dialog}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background shadow-xl overscroll-contain"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background shadow-xl overscroll-contain"
             >
               {/* Header */}
               <div className="px-6 pt-6 pb-4 border-b">

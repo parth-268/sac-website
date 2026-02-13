@@ -294,7 +294,7 @@ const CommitteesPage = () => {
               aria-labelledby="committee-title"
               variants={dialog(prefersReducedMotion)}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-6 md:px-6 md:py-8 shadow-xl overscroll-contain focus:outline-none"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-6 md:px-6 md:py-8 shadow-xl overscroll-contain focus:outline-none"
             >
               <button
                 onClick={handleCloseDialog}
