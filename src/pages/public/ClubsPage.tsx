@@ -51,7 +51,9 @@ const ClubsPage = () => {
     exit: { opacity: 0, transition: { duration: 0.2 } },
   };
 
-  const { data: clubs, isLoading } = useClubs();
+  const { data: clubs, isLoading } = useClubs({
+    onlyActive: true,
+  });
 
   const { data: seniorMembers } = useClubMembers(activeClub?.id, "senior");
 
@@ -289,7 +291,9 @@ const ClubsPage = () => {
                 {/* About */}
                 <section className="space-y-2">
                   <h3 className="text-sm font-semibold text-foreground">
-                    About the Club
+                    {activeClub.type === "club"
+                      ? "About the Club"
+                      : "About the Contingent"}
                   </h3>
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {activeClub.description}

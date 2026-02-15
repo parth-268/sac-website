@@ -8,16 +8,31 @@ import type {
 
 type ContactSubmission = Tables<"contact_submissions">;
 
-export const useContactSubmissions = () => {
+export type ContactFilter = "all" | "read" | "unread" | "deleted";
+
+export const useContactSubmissions = (filter: ContactFilter = "all") => {
   return useQuery({
-    queryKey: ["contact_submissions"],
+    queryKey: ["contact_submissions", filter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("contact_submissions")
         .select("*")
         .order("created_at", { ascending: false });
 
+      if (filter === "read") {
+        query = query.eq("is_read", true).eq("is_deleted", false);
+      } else if (filter === "unread") {
+        query = query.eq("is_read", false).eq("is_deleted", false);
+      } else if (filter === "deleted") {
+        query = query.eq("is_deleted", true);
+      } else {
+        // default "all" → only non-deleted
+        query = query.eq("is_deleted", false);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
+
       return data as ContactSubmission[];
     },
   });

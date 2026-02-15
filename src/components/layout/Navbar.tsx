@@ -6,6 +6,8 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { Bell } from "lucide-react";
+import { useContactSubmissions } from "@/hooks/useContactInfo";
 
 /* -------------------------------------------------------------------------- */
 /*                               Motion Config                                 */
@@ -47,12 +49,28 @@ export const Navbar = () => {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
-    window.addEventListener("scroll", onScroll);
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "unset";
+  }, [isOpen]);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname]);
+
+  // Handle Escape key to close mobile menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
   /* ------------------------------------------------------------------------ */
@@ -67,10 +85,15 @@ export const Navbar = () => {
   const primaryText = scrolled ? "text-slate-900" : "text-white";
   const secondaryText = scrolled ? "text-slate-500" : "text-white/70";
 
+  const { data: unreadMessages } = useContactSubmissions("unread");
+  const unreadCount = unreadMessages?.length ?? 0;
+
   return (
     <>
       {/* ============================ NAVBAR ============================ */}
       <motion.nav
+        role="navigation"
+        aria-label="Primary"
         initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={NAV_FADE}
@@ -131,6 +154,7 @@ export const Navbar = () => {
                 <Link
                   key={link.name}
                   to={link.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative px-4 py-2 rounded-full text-sm font-medium transition-all",
                     active
@@ -150,7 +174,26 @@ export const Navbar = () => {
           </div>
 
           {/* --------------------- RIGHT: Auth ----------------------- */}
-          <div className="hidden md:flex items-center gap-4 pl-6 border-l border-slate-200/60">
+          <div className="hidden md:flex items-center gap-3 pl-4 border-l border-slate-200/60">
+            {user && isEditor && (
+              <Link
+                to="/admin/messages"
+                aria-label={`Unread messages: ${unreadCount}`}
+                className="relative p-2 rounded-full hover:bg-slate-100 transition-colors"
+              >
+                <Bell className="h-5 w-5 text-slate-700" />
+
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1
+        flex items-center justify-center rounded-full bg-accent text-black
+        text-[10px] font-bold leading-none"
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {user ? (
               isEditor && (
                 <Button
@@ -189,6 +232,8 @@ export const Navbar = () => {
                 : "text-white hover:bg-white/10",
             )}
             aria-label="Toggle menu"
+            aria-expanded={isOpen}
+            aria-controls="mobile-menu"
           >
             {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
@@ -211,6 +256,7 @@ export const Navbar = () => {
 
             {/* Side menu */}
             <motion.aside
+              id="mobile-menu"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
@@ -228,6 +274,9 @@ export const Navbar = () => {
                     <Link
                       to={link.href}
                       onClick={() => setIsOpen(false)}
+                      aria-current={
+                        location.pathname === link.href ? "page" : undefined
+                      }
                       className={cn(
                         "flex items-center justify-between py-4 px-2 text-xl font-heading font-bold border-b border-white/10",
                         location.pathname === link.href
@@ -244,6 +293,21 @@ export const Navbar = () => {
 
               {/* Auth actions */}
               <div className="mt-2 pt-2">
+                {user && isEditor && (
+                  <Link
+                    to="/admin/messages"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center gap-3 w-full px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold transition-colors relative mb-2"
+                  >
+                    <Bell className="w-5 h-5" />
+                    <span>Unread Messages</span>
+                    {unreadCount > 0 && (
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-accent text-black text-[10px] font-bold leading-none">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </Link>
+                )}
                 {user ? (
                   isEditor && (
                     <Link

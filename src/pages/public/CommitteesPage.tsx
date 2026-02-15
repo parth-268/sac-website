@@ -59,7 +59,7 @@ const dialog = (reduced: boolean): Variants => ({
 });
 
 const CommitteesPage = () => {
-  const { data: committees, isLoading } = useCommittees();
+  const { data: committees, isLoading } = useCommittees({ onlyActive: true });
   const [activeCommittee, setActiveCommittee] =
     useState<Tables<"committees"> | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();

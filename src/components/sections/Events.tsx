@@ -9,7 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useUpcomingEvents } from "@/hooks/useEvents";
 import { format } from "date-fns";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Transition } from "framer-motion";
 
@@ -39,39 +40,41 @@ const cardVariants = {
   },
 };
 
+// --- Hoisted helper functions ---
+const getDay = (dateStr: string) => format(new Date(dateStr), "dd");
+const getMonth = (dateStr: string) => format(new Date(dateStr), "MMM");
+// Helper to check if a date string is today
+const isToday = (dateStr: string): boolean => {
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  return dateStr === todayStr;
+};
+// Helper to get relative label for a date string
+const getRelativeLabel = (dateStr: string): string | null => {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const eventDate = new Date(dateStr);
+  const diffTime = eventDate.getTime() - startOfToday.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
+  return null;
+};
+
 export const Events = () => {
   const { data: events, isLoading } = useUpcomingEvents();
+  const navigate = useNavigate();
 
-  const getDay = (dateStr: string) => format(new Date(dateStr), "dd");
-  const getMonth = (dateStr: string) => format(new Date(dateStr), "MMM");
-
-  const nearestEvents = events
-    ? [...events]
-        .sort(
-          (a, b) =>
-            new Date(a.event_date).getTime() - new Date(b.event_date).getTime(),
-        )
-        .slice(0, 3)
-    : [];
-
-  // Helper to check if a date string is today
-  const isToday = (dateStr: string): boolean => {
-    const todayStr = format(new Date(), "yyyy-MM-dd");
-    return dateStr === todayStr;
-  };
-
-  // Helper to get relative label for a date string
-  const getRelativeLabel = (dateStr: string): string | null => {
-    const today = new Date();
-    const eventDate = new Date(dateStr);
-    const diffTime = eventDate.getTime() - today.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
-    return null;
-  };
+  const nearestEvents = useMemo(() => {
+    if (!events) return [];
+    return [...events]
+      .sort(
+        (a, b) =>
+          new Date(a.event_date).getTime() - new Date(b.event_date).getTime(),
+      )
+      .slice(0, 3);
+  }, [events]);
 
   return (
     <section
@@ -149,16 +152,16 @@ export const Events = () => {
                   key={event.id}
                   layout
                   variants={cardVariants}
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ y: -4, scale: 1.01 }}
                   transition={CARD_TRANSITION}
                   style={{ willChange: "transform" }}
                   onClick={() => {
-                    window.location.href = "/events";
+                    navigate("/events");
                   }}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") window.location.href = "/events";
+                    if (e.key === "Enter") navigate("/events");
                   }}
                   className="group relative flex flex-col bg-white border border-slate-200/60 rounded-xl overflow-hidden hover:shadow-lg hover:border-accent/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/40"
                 >
@@ -188,22 +191,19 @@ export const Events = () => {
                     </div>
 
                     {/* New badges for today or relative label */}
-                    {isToday(event.event_date) ? (
+                    {isToday(event.event_date) && (
                       <div className="absolute top-3 right-3 z-10 bg-accent text-white text-[10px] font-semibold rounded-full px-2 py-0.5 select-none whitespace-nowrap shadow-md ring-1 ring-white/40 pointer-events-none">
                         {" "}
                         Happening Today
                       </div>
-                    ) : (
-                      (() => {
-                        const label = getRelativeLabel(event.event_date);
-                        return label ? (
-                          <div className="absolute top-3 right-3 z-10 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full px-2 py-0.5 select-none whitespace-nowrap shadow-md ring-1 ring-amber-300/40 pointer-events-none">
-                            {" "}
-                            {label}
-                          </div>
-                        ) : null;
-                      })()
                     )}
+                    {!isToday(event.event_date) &&
+                      getRelativeLabel(event.event_date) && (
+                        <div className="absolute top-3 right-3 z-10 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full px-2 py-0.5 select-none whitespace-nowrap shadow-md ring-1 ring-amber-300/40 pointer-events-none">
+                          {" "}
+                          {getRelativeLabel(event.event_date)}
+                        </div>
+                      )}
                   </div>
 
                   {/* Content */}
@@ -228,7 +228,10 @@ export const Events = () => {
                     </div>
 
                     <p className="text-xs text-slate-500 line-clamp-2 mb-3">
-                      {event.description}
+                      {(event.short_description &&
+                        event.short_description.trim()) ||
+                        (event.description && event.description.trim()) ||
+                        "No description available."}
                     </p>
 
                     {/* Footer */}

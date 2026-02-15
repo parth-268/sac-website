@@ -314,6 +314,16 @@ export default function AdminSettings() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label>Footer Description</Label>
+              <Input
+                value={values["footer_description"] || ""}
+                onChange={(e) =>
+                  handleChange("footer_description", e.target.value)
+                }
+                placeholder="A student-run organization at IIM Sambalpur dedicated to fostering community."
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Copyright Text</Label>
               <Input
                 value={values["copyright_text"] || ""}
@@ -323,7 +333,9 @@ export default function AdminSettings() {
             </div>
             <Button
               variant="outline"
-              onClick={() => handleSave(["copyright_text"])}
+              onClick={() =>
+                handleSave(["footer_description", "copyright_text"])
+              }
               disabled={updateSetting.isPending}
             >
               {updateSetting.isPending && (

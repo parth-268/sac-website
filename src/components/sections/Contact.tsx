@@ -1,6 +1,6 @@
 import { Mail, MapPin, Send, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSubmitContactForm } from "@/hooks/useContactInfo";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { toast } from "sonner";
@@ -45,19 +45,20 @@ type FloatingInputProps =
       });
 
 const FloatingInput = (props: FloatingInputProps) => {
-  const { label, id, className, ...rest } = props;
+  const { label, id, className, textarea, ...rest } = props;
 
   const baseClassName = cn(
     "peer w-full px-4 py-3 bg-white/[0.05] border border-white/10 rounded-xl outline-none text-white placeholder-transparent",
     "focus:border-accent focus:ring-2 focus:ring-accent/20 focus:bg-white/[0.08]",
     "aria-[invalid=true]:border-red-400/60 aria-[invalid=true]:ring-red-400/20",
     "transition-all duration-200 resize-none",
+    textarea ? "min-h-[100px]" : "",
     className,
   );
 
   return (
     <div className="relative">
-      {props.textarea ? (
+      {textarea ? (
         <textarea
           id={id}
           placeholder=" "
@@ -75,11 +76,11 @@ const FloatingInput = (props: FloatingInputProps) => {
 
       <label
         htmlFor={id}
-        className="absolute left-4 top-3.5 text-white/50 text-xs font-medium pointer-events-none
+        className="absolute left-4 top-3 text-white/50 text-sm font-medium pointer-events-none
           transition-all duration-200 ease-out
-          peer-focus:top-1.5 peer-focus:text-[10px] peer-focus:text-accent
+          peer-focus:top-1.5 peer-focus:text-[8px] peer-focus:text-accent
           peer-[&:not(:placeholder-shown)]:top-1.5
-          peer-[&:not(:placeholder-shown)]:text-[10px]"
+          peer-[&:not(:placeholder-shown)]:text-[8px] peer-[&:not(:placeholder-shown)]:text-white/60"
       >
         {label}
       </label>
@@ -106,6 +107,15 @@ export const Contact = () => {
   const [touched, setTouched] = useState<TouchedFields>({});
 
   const prefersReducedMotion = useReducedMotion() ?? false;
+
+  useEffect(() => {
+    if (submitted) {
+      document.getElementById("contact")?.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "center",
+      });
+    }
+  }, [submitted, prefersReducedMotion]);
 
   const { data: settings } = useSiteSettings();
   const submitContact = useSubmitContactForm();
@@ -147,9 +157,15 @@ export const Contact = () => {
     if (form.company?.value) return;
 
     try {
-      await submitContact.mutateAsync(formData);
+      await submitContact.mutateAsync({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+      });
       setSubmitted(true);
       setFormData({ name: "", email: "", subject: "", message: "" });
+      setTouched({});
     } catch {
       toast.error("Failed to send message");
     }
@@ -254,6 +270,7 @@ export const Contact = () => {
                     setFormData({ ...formData, name: e.currentTarget.value })
                   }
                   required
+                  maxLength={80}
                 />
                 <FloatingInput
                   id="email"
@@ -283,6 +300,7 @@ export const Contact = () => {
                   setFormData({ ...formData, subject: e.currentTarget.value })
                 }
                 required
+                maxLength={120}
               />
 
               <FloatingInput
@@ -298,6 +316,7 @@ export const Contact = () => {
                   setFormData({ ...formData, message: e.currentTarget.value })
                 }
                 required
+                maxLength={500}
               />
 
               <Button
@@ -359,7 +378,7 @@ const ContactRow = ({ icon: Icon, label, value, href }: ContactRowProps) => {
   return (
     <Wrapper
       {...props}
-      className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-colors"
+      className="group flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-colors"
     >
       <div className="p-2 rounded-lg bg-accent/10 text-accent">
         <Icon className="w-4 h-4" />

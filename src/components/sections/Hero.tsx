@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import {
@@ -7,6 +7,7 @@ import {
   useTransform,
   AnimatePresence,
   type Transition,
+  useReducedMotion,
 } from "framer-motion";
 import { useActiveHeroBanners } from "@/hooks/useHeroBanners";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
@@ -38,24 +39,33 @@ const SPRING_SOFT: Transition = {
 /* -------------------------------------------------------------------------- */
 
 export const Hero = () => {
-  const containerRef = useRef<HTMLElement | null>(null);
+  const containerRef = useRef<HTMLElement>(null!);
+  const shouldReduceMotion = useReducedMotion();
 
   /* ------------------------------ Data Fetch ------------------------------ */
   const { data: dbBanners, isLoading } = useActiveHeroBanners();
   const { data: settings } = useSiteSettings();
 
-  const getText = (key: string, fallback: string) =>
-    settings?.find((s) => s.setting_key === key)?.setting_value || fallback;
-
-  const line1 = getText("hero_line_1", "Students'");
-  const line2 = getText("hero_line_2", "Affairs");
-  const line3 = getText("hero_line_3", "Council");
-  const description = getText(
-    "hero_description",
-    "The apex body representing the student voice, fostering leadership, and building a vibrant campus culture.",
+  const getText = useCallback(
+    (key: string, fallback: string) =>
+      settings?.find((s) => s.setting_key === key)?.setting_value || fallback,
+    [settings],
   );
-  const ctaText = getText("hero_cta_text", "Explore SAC");
-  const ctaLink = getText("hero_cta_link", "#about");
+
+  const { line1, line2, line3, description, ctaText, ctaLink } = useMemo(
+    () => ({
+      line1: getText("hero_line_1", "Students'"),
+      line2: getText("hero_line_2", "Affairs"),
+      line3: getText("hero_line_3", "Council"),
+      description: getText(
+        "hero_description",
+        "The apex body representing the student voice, fostering leadership, and building a vibrant campus culture.",
+      ),
+      ctaText: getText("hero_cta_text", "Explore SAC"),
+      ctaLink: getText("hero_cta_link", "#about"),
+    }),
+    [getText],
+  );
 
   const banners =
     dbBanners && dbBanners.length > 0
@@ -86,12 +96,34 @@ export const Hero = () => {
     offset: ["start start", "end start"],
   });
 
-  const yBackground = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
-  const yContent = useTransform(scrollYProgress, [0, 1], ["0%", "80%"]);
-  const opacityContent = useTransform(scrollYProgress, [0, 0.55], [1, 0]);
+  const yBackgroundTransform = useTransform(
+    scrollYProgress,
+    [0, 1],
+    ["0%", "30%"],
+  );
+
+  const yContentTransform = useTransform(
+    scrollYProgress,
+    [0, 1],
+    ["0%", "80%"],
+  );
+
+  const opacityContentTransform = useTransform(
+    scrollYProgress,
+    [0, 0.55],
+    [1, 0],
+  );
+
+  const yBackground = shouldReduceMotion ? "0%" : yBackgroundTransform;
+  const yContent = shouldReduceMotion ? "0%" : yContentTransform;
+  const opacityContent = shouldReduceMotion ? 1 : opacityContentTransform;
 
   if (isLoading) {
-    return <Skeleton className="h-screen w-full bg-[#0a0f1d]" />;
+    return (
+      <div className="h-screen w-full bg-[#0a0f1d] flex items-center justify-center">
+        <Skeleton className="h-[60vh] w-[90%] max-w-5xl rounded-xl bg-white/5" />
+      </div>
+    );
   }
 
   return (
@@ -102,21 +134,28 @@ export const Hero = () => {
       {/* ------------------------------------------------------------------ */}
       {/* Background Carousel                                                */}
       {/* ------------------------------------------------------------------ */}
-      <motion.div style={{ y: yBackground }} className="absolute inset-0 z-0">
+      <motion.div
+        style={{ y: yBackground, willChange: "transform" }}
+        className="absolute inset-0 z-0"
+      >
         <AnimatePresence mode="wait">
           <motion.div
-            key={banners[currentSlide].id}
+            key={banners[currentSlide]?.id || "fallback"}
             initial={{ opacity: 0, scale: 1.05 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            transition={FADE_SLOW}
+            transition={shouldReduceMotion ? { duration: 0.5 } : FADE_SLOW}
             className="absolute inset-0"
           >
             <img
-              src={banners[currentSlide].image_url}
-              alt="IIM Sambalpur Campus"
+              src={
+                banners[currentSlide]?.image_url ||
+                "https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1920&auto=format&fit=crop"
+              }
+              alt={`Hero Banner ${currentSlide + 1}`}
               className="w-full h-full object-cover object-center"
-              loading="eager"
+              loading="lazy"
+              {...(currentSlide === 0 ? { fetchpriority: "high" } : {})}
             />
 
             {/* Layered cinematic overlays */}
@@ -131,7 +170,11 @@ export const Hero = () => {
       {/* Foreground Content                                                  */}
       {/* ------------------------------------------------------------------ */}
       <motion.div
-        style={{ y: yContent, opacity: opacityContent }}
+        style={{
+          y: yContent,
+          opacity: opacityContent,
+          willChange: "transform",
+        }}
         className="relative z-10 container-wide mx-auto px-4 sm:px-6 text-center"
       >
         {/* Badge */}
@@ -154,13 +197,16 @@ export const Hero = () => {
               key={line}
               initial={{ opacity: 0, y: 36 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ ...SPRING_SOFT, delay: i * 0.12 }}
-              className={`block w-full text-center text-[16vw] sm:text-6xl md:text-7xl lg:text-8xl ${
-                i === 2
-                  ? "text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500"
+              transition={{
+                ...SPRING_SOFT,
+                delay: shouldReduceMotion ? 0 : i * 0.12,
+              }}
+              className={`block w-full text-center ${
+                i === 0
+                  ? "text-[14vw] sm:text-6xl md:text-7xl lg:text-8xl text-white"
                   : i === 1
-                    ? "text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70"
-                    : "text-white"
+                    ? "text-[14vw] sm:text-6xl md:text-7xl lg:text-8xl text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70"
+                    : "text-[14vw] sm:text-6xl md:text-7xl lg:text-8xl text-transparent bg-clip-text bg-gradient-to-r from-accent to-amber-500"
               }`}
             >
               {line}
@@ -172,7 +218,7 @@ export const Hero = () => {
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...FADE_SMOOTH, delay: 0.45 }}
+          transition={{ ...FADE_SMOOTH, delay: shouldReduceMotion ? 0 : 0.45 }}
           className="text-base sm:text-lg md:text-xl text-white/80 max-w-3xl mx-auto mb-10 leading-relaxed"
         >
           {description}
@@ -182,13 +228,14 @@ export const Hero = () => {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ ...FADE_SMOOTH, delay: 0.6 }}
+          transition={{ ...FADE_SMOOTH, delay: shouldReduceMotion ? 0 : 0.6 }}
           className="flex flex-col sm:flex-row gap-4 justify-center items-center"
         >
           <Button
             size="xl"
             asChild
             className="h-12 px-10 rounded-full bg-white text-black hover:bg-accent hover:text-white font-bold transition-all duration-300"
+            aria-label={ctaText}
           >
             <a href={ctaLink}>{ctaText}</a>
           </Button>
@@ -211,18 +258,23 @@ export const Hero = () => {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.6, duration: 1 }}
+        transition={{ delay: shouldReduceMotion ? 0 : 1.6, duration: 1 }}
         className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 text-white/50 pointer-events-none"
+        aria-label="Scroll down indicator"
       >
         <span className="text-[9px] uppercase tracking-[0.3em] font-bold">
           Scroll
         </span>
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-        >
+        {shouldReduceMotion ? (
           <ChevronDown className="w-5 h-5" />
-        </motion.div>
+        ) : (
+          <motion.div
+            animate={{ y: [0, 8, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <ChevronDown className="w-5 h-5" />
+          </motion.div>
+        )}
       </motion.div>
     </section>
   );

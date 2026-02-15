@@ -170,9 +170,14 @@ const AdminDashboard = () => {
   const { data: events, isLoading: eventsLoading } = useEvents(
     activeAcademicYear?.year,
   );
-  const { data: committees, isLoading: commLoading } = useCommittees();
-  const { data: messages, isLoading: msgLoading } = useContactSubmissions();
-  const { data: clubs, isLoading: clubsLoading } = useClubs();
+  const { data: committees, isLoading: commLoading } = useCommittees({
+    onlyActive: true,
+  });
+  const { data: messages, isLoading: msgLoading } =
+    useContactSubmissions("unread");
+  const { data: clubs, isLoading: clubsLoading } = useClubs({
+    onlyActive: true,
+  });
 
   // Only count upcoming events (today or later, published, not archived)
   const todayISO = React.useMemo(

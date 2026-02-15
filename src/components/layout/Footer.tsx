@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Settings,
@@ -22,13 +23,22 @@ export const Footer = () => {
   const reduceMotion = useReducedMotion();
 
   // 2. HELPER
-  const getVal = (key: string, fallback: string) =>
-    settings?.find((s) => s.setting_key === key)?.setting_value || fallback;
+  const getVal = useCallback(
+    (key: string, fallback: string) =>
+      settings?.find((s) => s.setting_key === key)?.setting_value || fallback,
+    [settings],
+  );
 
   // 3. DYNAMIC VALUES
   const copyrightText = getVal(
     "copyright_text",
     `© ${currentYear} SAC IIM Sambalpur. All rights reserved.`,
+  );
+
+  // Footer Description
+  const footerDescription = getVal(
+    "footer_description",
+    "The apex student body fostering leadership, creativity, and community. Building a vibrant legacy for the future leaders.",
   );
 
   // Fetch Both Logos
@@ -38,12 +48,12 @@ export const Footer = () => {
   const socialLinks = [
     {
       icon: Instagram,
-      href: getVal("social_instagram", "#"),
+      href: getVal("social_instagram", ""),
       label: "Instagram",
     },
-    { icon: Linkedin, href: getVal("social_linkedin", "#"), label: "LinkedIn" },
-    { icon: Twitter, href: getVal("social_twitter", "#"), label: "Twitter" },
-    { icon: Facebook, href: getVal("social_facebook", "#"), label: "Facebook" },
+    { icon: Linkedin, href: getVal("social_linkedin", ""), label: "LinkedIn" },
+    { icon: Twitter, href: getVal("social_twitter", ""), label: "Twitter" },
+    { icon: Facebook, href: getVal("social_facebook", ""), label: "Facebook" },
   ];
 
   const quickLinks = [
@@ -128,14 +138,13 @@ export const Footer = () => {
             {/* Text Content */}
             <div>
               <h3 className="font-heading text-sm font-bold text-white leading-none">
-                Student Affairs Council
+                Students' Affairs Council
               </h3>
               <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] mt-1">
                 IIM Sambalpur
               </p>
-              <p className="text-slate-400 text-xs leading-relaxed max-w-sm mt-3">
-                The apex student body fostering leadership, creativity, and
-                community. Building a vibrant legacy for the future leaders.
+              <p className="text-slate-400 text-xs leading-relaxed max-w-sm mt-3 line-clamp-3">
+                {footerDescription}
               </p>
             </div>
 
@@ -143,11 +152,16 @@ export const Footer = () => {
               {socialLinks.map((social, i) => (
                 <a
                   key={i}
-                  href={social.href}
-                  target={social.href !== "#" ? "_blank" : "_self"}
-                  rel="noopener noreferrer"
-                  className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 will-change-transform hover:scale-[1.06] transition-transform"
+                  href={social.href || undefined}
+                  target={social.href ? "_blank" : undefined}
+                  rel={social.href ? "noopener noreferrer nofollow" : undefined}
                   aria-label={social.label}
+                  aria-disabled={!social.href}
+                  className={
+                    social.href
+                      ? "w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 will-change-transform hover:scale-[1.06] focus-visible:ring-1 focus-visible:ring-accent/40"
+                      : "w-8 h-8 rounded-md flex items-center justify-center text-slate-700 cursor-not-allowed opacity-40"
+                  }
                 >
                   <social.icon className="w-4 h-4" />
                 </a>
@@ -210,13 +224,13 @@ export const Footer = () => {
             <span className="flex items-center gap-1 hover:text-slate-400 transition-colors cursor-default">
               Made with{" "}
               <Heart className="w-3 h-3 text-red-500/80 fill-red-500/20" /> by
-              Tech Team
+              SAC Team x APSK
             </span>
 
             {user && isEditor ? (
               <Link
                 to="/admin"
-                className="text-accent hover:text-white flex items-center gap-1 transition-colors"
+                className="text-accent hover:text-white flex items-center gap-1 transition-colors font-medium"
               >
                 <Settings className="w-3 h-3" /> Admin
               </Link>

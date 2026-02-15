@@ -25,7 +25,10 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const AdminMessages = () => {
-  const { data: messages, isLoading } = useContactSubmissions();
+  const { data: websiteMessages, isLoading: websiteLoading } =
+    useContactSubmissions("all");
+  const { data: deletedMessagesData, isLoading: deletedLoading } =
+    useContactSubmissions("deleted");
   const markRead = useMarkSubmissionRead();
 
   const deleteMessages = async (ids: string[]) => {
@@ -71,7 +74,7 @@ const AdminMessages = () => {
   };
 
   const [selectedMessage, setSelectedMessage] = useState<
-    NonNullable<typeof messages>[number] | null
+    NonNullable<typeof websiteMessages>[number] | null
   >(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -105,7 +108,7 @@ const AdminMessages = () => {
   const clearSelection = () => setSelectedIds(new Set());
 
   const handleViewMessage = async (
-    message: NonNullable<typeof messages>[number],
+    message: NonNullable<typeof websiteMessages>[number],
   ) => {
     setSelectedMessage(message);
     if (!message.is_read) {
@@ -117,29 +120,13 @@ const AdminMessages = () => {
     }
   };
 
-  const unreadCount =
-    messages?.filter((m) => !m.is_read && !m.is_deleted).length || 0;
+  // --- New state derived from websiteMessages and deletedMessagesData
+  const unreadCount = websiteMessages?.filter((m) => !m.is_read).length || 0;
 
-  const visibleMessages = useMemo(() => {
-    if (!messages) return [];
-    return messages
-      .filter((m) => !m.is_deleted)
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
-  }, [messages]);
+  const visibleMessages = websiteMessages ?? [];
+  const deletedMessages = deletedMessagesData ?? [];
 
-  const deletedMessages = useMemo(() => {
-    if (!messages) return [];
-    return messages
-      .filter((m) => m.is_deleted)
-      .sort(
-        (a, b) =>
-          new Date(b.deleted_at ?? b.created_at).getTime() -
-          new Date(a.deleted_at ?? a.created_at).getTime(),
-      );
-  }, [messages]);
+  const isLoading = activeTab === "deleted" ? deletedLoading : websiteLoading;
 
   const currentTabMessages =
     activeTab === "deleted" ? deletedMessages : visibleMessages;

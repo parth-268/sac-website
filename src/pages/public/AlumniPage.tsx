@@ -71,11 +71,11 @@ const AlumniPage = () => {
       <Navbar />
 
       <PageHero
-        title="Our"
+        title="Legion of"
         highlight="Alumni"
         description="A legacy of leadership, impact, and excellence that continues beyond campus."
         variant="centered"
-        pattern="mesh"
+        pattern="dots"
       />
 
       <section className="relative py-8 md:py-12">

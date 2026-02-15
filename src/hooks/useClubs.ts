@@ -21,7 +21,7 @@ export const useClubs = (options?: UseClubsOptions) => {
   const { type, onlyActive = false } = options ?? {};
 
   return useQuery({
-    queryKey: ["clubs", type, onlyActive],
+    queryKey: ["clubs", { type, onlyActive }],
     queryFn: async () => {
       let query = supabase
         .from("clubs")
@@ -39,7 +39,7 @@ export const useClubs = (options?: UseClubsOptions) => {
       const { data, error } = await query;
       if (error) throw error;
 
-      return data as Club[];
+      return data ?? [];
     },
   });
 };

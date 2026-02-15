@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { Linkedin, Mail, Users, Phone } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useTeamMembers, TeamMember } from "@/hooks/useTeamData";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,8 @@ const ROLE_HIERARCHY: Record<string, number> = {
   "general secretary": 4,
   coordinator: 99,
 };
+
+const normalizeRole = (role: string) => role.toLowerCase().trim();
 
 // --- Animation Constants (SMOOTH & STABLE) ---
 
@@ -87,7 +90,7 @@ const SocialLink = ({
   label,
 }: {
   href: string;
-  icon: any;
+  icon: LucideIcon;
   label: string;
 }) => {
   if (!href) return null;
@@ -107,6 +110,7 @@ const SocialLink = ({
 
 export const Team = () => {
   const { data: members, isLoading } = useTeamMembers();
+  const shouldReduceMotion = useReducedMotion();
 
   // --- Data Processing ---
   const sortedMembers = useMemo(() => {
@@ -125,10 +129,10 @@ export const Team = () => {
         if (batchA !== batchB) return batchA - batchB;
 
         const roleA =
-          ROLE_HIERARCHY[a.designation.toLowerCase()] ||
+          ROLE_HIERARCHY[normalizeRole(a.designation)] ||
           ROLE_HIERARCHY.coordinator;
         const roleB =
-          ROLE_HIERARCHY[b.designation.toLowerCase()] ||
+          ROLE_HIERARCHY[normalizeRole(b.designation)] ||
           ROLE_HIERARCHY.coordinator;
 
         if (roleA !== roleB) return roleA - roleB;
@@ -206,7 +210,10 @@ export const Team = () => {
                     key={member.id}
                     layout
                     variants={cardVariants}
-                    whileHover={{ scale: 1.03 }}
+                    whileHover={
+                      shouldReduceMotion ? undefined : { scale: 1.03 }
+                    }
+                    whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
                     transition={CARD_TRANSITION}
                     style={{ willChange: "transform" }}
                     className="group relative flex flex-col bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm hover:shadow-xl hover:border-accent/20 transition-colors duration-300"
@@ -222,8 +229,9 @@ export const Team = () => {
                     <div className="p-4 flex flex-col flex-1 text-center">
                       <div className="mb-2">
                         <h3
-                          className="font-heading text-base md:text-lg font-bold text-slate-900 leading-snug truncate"
+                          className="font-heading text-base md:text-lg font-bold text-slate-900 leading-snug truncate focus:whitespace-normal focus:outline-none"
                           title={member.name}
+                          tabIndex={0}
                         >
                           {member.name}
                         </h3>

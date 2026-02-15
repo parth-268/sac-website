@@ -387,7 +387,7 @@ function EventCard({
         muted ? "opacity-80" : ""
       } hover:border-accent/40`}
     >
-      <div className="relative h-32 bg-secondary overflow-hidden">
+      <div className="relative h-36 bg-secondary overflow-hidden">
         {event.banner_image_url ? (
           <img
             src={event.banner_image_url}

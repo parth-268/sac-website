@@ -10,14 +10,25 @@ type Committee = Tables<"committees">;
 type CommitteeInsert = TablesInsert<"committees">;
 type CommitteeUpdate = TablesUpdate<"committees">;
 
-export const useCommittees = () => {
+type UseCommitteesOptions = {
+  onlyActive?: boolean;
+};
+
+export const useCommittees = (options: UseCommitteesOptions = {}) => {
   return useQuery({
-    queryKey: ["committees"],
+    queryKey: ["committees", options.onlyActive ?? false],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("committees")
         .select("*")
         .order("name", { ascending: true });
+
+      if (options.onlyActive) {
+        query = query.eq("is_active", true);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
 
       if (error) throw error;
       return data as Committee[];
