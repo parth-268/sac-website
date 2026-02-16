@@ -1,3 +1,126 @@
+// Editable row component
+
+type EditableMember = {
+  uid: string;
+  name: string;
+  designation: string;
+  phone: string | null;
+};
+function SortableEditableRow({
+  member,
+  index,
+  role,
+  onEdit,
+  onRemove,
+  onMove,
+  moveLabel,
+}: {
+  member: EditableMember;
+  index: number;
+  role: "senior" | "junior";
+  onEdit: (uid: string, field: keyof EditableMember, value: string) => void;
+  onRemove: (uid: string) => void;
+  onMove?: (uid: string) => void;
+  moveLabel?: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: member.uid });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="
+        flex flex-col gap-2 rounded-lg border bg-background p-2 text-sm
+        sm:grid sm:grid-cols-[auto_1fr_1fr_1fr_auto_auto]
+        sm:rounded-none sm:border-0 sm:p-0 sm:border-t sm:text-base
+      "
+    >
+      <span
+        {...attributes}
+        {...listeners}
+        className="hidden sm:inline-flex text-muted-foreground p-3 rounded-md cursor-grab active:scale-95 touch-none opacity-40 hover:opacity-100 transition-opacity"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="h-4 w-4" />
+      </span>
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
+        <Input
+          className="w-full min-w-0 h-9 sm:h-9"
+          value={member.name}
+          placeholder="Name"
+          onChange={(e) => onEdit(member.uid, "name", e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
+        <Input
+          className="w-full min-w-0 h-9 sm:h-9"
+          value={member.designation}
+          placeholder="Designation"
+          onChange={(e) => onEdit(member.uid, "designation", e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
+        <Input
+          className="w-full min-w-0 h-9 sm:h-9"
+          value={member.phone ?? ""}
+          placeholder="Phone"
+          onChange={(e) => onEdit(member.uid, "phone", e.target.value)}
+        />
+      </div>
+      {/* Mobile-only action row */}
+      <div className="flex justify-end gap-1 sm:hidden">
+        {onMove && (
+          <Button size="sm" variant="ghost" onClick={() => onMove(member.uid)}>
+            {role === "senior" ? (
+              <ArrowDown className="h-4 w-4" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => onRemove(member.uid)}>
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+      {/* Desktop action row */}
+      <div className="hidden sm:flex gap-2">
+        {onMove && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="opacity-60 hover:opacity-100"
+            type="button"
+            aria-label={moveLabel}
+            title={moveLabel}
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onMove(member.uid);
+            }}
+          >
+            {role === "senior" ? (
+              <ArrowDown className="h-4 w-4" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => onRemove(member.uid)}
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 import { useState, useEffect, useCallback } from "react";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -476,14 +599,6 @@ function MembersSection({
   const bulkInsert = useBulkInsertCommitteeMembers();
   const updateCommittee = useUpdateCommittee();
 
-  // Editable local state for members
-  type EditableMember = {
-    uid: string;
-    name: string;
-    designation: string;
-    phone: string | null;
-  };
-
   const [seniorMembers, setSeniorMembers] = useState<EditableMember[]>([]);
   const [juniorMembers, setJuniorMembers] = useState<EditableMember[]>([]);
 
@@ -788,131 +903,6 @@ function MembersSection({
     setMembersDirty,
     setSaving,
   ]);
-  // Editable row component
-  function SortableEditableRow({
-    member,
-    index,
-    role,
-    onEdit,
-    onRemove,
-    onMove,
-    moveLabel,
-  }: {
-    member: EditableMember;
-    index: number;
-    role: "senior" | "junior";
-    onEdit: (uid: string, field: keyof EditableMember, value: string) => void;
-    onRemove: (uid: string) => void;
-    onMove?: (uid: string) => void;
-    moveLabel?: string;
-  }) {
-    const { attributes, listeners, setNodeRef, transform, transition } =
-      useSortable({ id: member.uid });
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="
-          flex flex-col gap-2 rounded-lg border bg-background p-2 text-sm
-          sm:grid sm:grid-cols-[auto_1fr_1fr_1fr_auto_auto]
-          sm:rounded-none sm:border-0 sm:p-0 sm:border-t sm:text-base
-        "
-      >
-        <span
-          {...attributes}
-          {...listeners}
-          className="hidden sm:inline-flex text-muted-foreground p-3 rounded-md cursor-grab active:scale-95 touch-none opacity-40 hover:opacity-100 transition-opacity"
-          aria-label="Drag to reorder"
-        >
-          <GripVertical className="h-4 w-4" />
-        </span>
-        <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
-          <Input
-            className="w-full min-w-0 h-9 sm:h-9"
-            value={member.name}
-            placeholder="Name"
-            autoFocus={member.name === ""}
-            onChange={(e) => onEdit(member.uid, "name", e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
-          <Input
-            className="w-full min-w-0 h-9 sm:h-9"
-            value={member.designation}
-            placeholder="Designation"
-            onChange={(e) => onEdit(member.uid, "designation", e.target.value)}
-          />
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
-          <Input
-            className="w-full min-w-0 h-9 sm:h-9"
-            value={member.phone ?? ""}
-            placeholder="Phone"
-            onChange={(e) => onEdit(member.uid, "phone", e.target.value)}
-          />
-        </div>
-        {/* Mobile-only action row */}
-        <div className="flex justify-end gap-1 sm:hidden">
-          {onMove && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => onMove(member.uid)}
-            >
-              {role === "senior" ? (
-                <ArrowDown className="h-4 w-4" />
-              ) : (
-                <ArrowUp className="h-4 w-4" />
-              )}
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onRemove(member.uid)}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-        {/* Desktop action row */}
-        <div className="hidden sm:flex gap-2">
-          {onMove && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="opacity-60 hover:opacity-100"
-              type="button"
-              aria-label={moveLabel}
-              title={moveLabel}
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onMove(member.uid);
-              }}
-            >
-              {role === "senior" ? (
-                <ArrowDown className="h-4 w-4" />
-              ) : (
-                <ArrowUp className="h-4 w-4" />
-              )}
-            </Button>
-          )}
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => onRemove(member.uid)}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <form
@@ -980,9 +970,8 @@ function MembersSection({
                 strategy={verticalListSortingStrategy}
               >
                 {seniorMembers.map((m, idx) => (
-                  <>
+                  <div key={m.uid}>
                     <SortableEditableRow
-                      key={m.uid}
                       member={m}
                       index={idx}
                       role="senior"
@@ -994,7 +983,7 @@ function MembersSection({
                       moveLabel="Move to Junior"
                     />
                     <div className="sm:hidden h-px bg-border my-2" />
-                  </>
+                  </div>
                 ))}
               </SortableContext>
             </DndContext>
@@ -1053,9 +1042,8 @@ function MembersSection({
                 strategy={verticalListSortingStrategy}
               >
                 {juniorMembers.map((m, idx) => (
-                  <>
+                  <div key={m.uid}>
                     <SortableEditableRow
-                      key={m.uid}
                       member={m}
                       index={idx}
                       role="junior"
@@ -1067,7 +1055,7 @@ function MembersSection({
                       moveLabel="Promote to Senior"
                     />
                     <div className="sm:hidden h-px bg-border my-2" />
-                  </>
+                  </div>
                 ))}
               </SortableContext>
             </DndContext>
