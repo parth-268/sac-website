@@ -178,3 +178,24 @@ export const useDeleteClubSeniorMembers = () => {
     },
   });
 };
+
+export const useDeleteClubJuniorMembers = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (club_id: string) => {
+      const { error } = await supabase
+        .from("club_members")
+        .delete()
+        .eq("club_id", club_id)
+        .eq("role", "junior");
+
+      if (error) throw error;
+    },
+    onSuccess: (_, club_id) => {
+      queryClient.invalidateQueries({
+        queryKey: ["club-members", club_id, "junior"],
+      });
+    },
+  });
+};

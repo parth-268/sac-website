@@ -404,7 +404,7 @@ export default function AdminCommittees() {
               <Input
                 placeholder="Committee Name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.toUpperCase())}
               />
               <Textarea
                 placeholder="Committee Description"

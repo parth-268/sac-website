@@ -224,7 +224,7 @@ export const Footer = () => {
             <span className="flex items-center gap-1 hover:text-slate-400 transition-colors cursor-default">
               Made with{" "}
               <Heart className="w-3 h-3 text-red-500/80 fill-red-500/20" /> by
-              SAC Team x APSK.
+              AKA Inc.
             </span>
 
             {user && isEditor ? (

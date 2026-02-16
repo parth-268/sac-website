@@ -43,6 +43,9 @@ export const Navbar = () => {
   const location = useLocation();
 
   const { data: settings } = useSiteSettings();
+  const collegeLogoUrl = settings?.find(
+    (s) => s.setting_key === "college_logo_url",
+  )?.setting_value;
   const sacLogoUrl = settings?.find(
     (s) => s.setting_key === "sac_logo_url",
   )?.setting_value;
@@ -105,11 +108,33 @@ export const Navbar = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center">
           {/* ------------------------ LEFT: Logo ------------------------ */}
           <Link to="/" className="flex items-center gap-3 group shrink-0">
-            <div className="relative flex items-center justify-center">
+            <div className="relative flex items-center gap-3">
+              {collegeLogoUrl && (
+                <img
+                  src={collegeLogoUrl}
+                  alt="College Logo"
+                  loading="eager"
+                  className={cn(
+                    "h-10 w-auto object-contain transition-opacity duration-300",
+                    scrolled ? "opacity-100" : "opacity-80",
+                  )}
+                />
+              )}
+
+              {collegeLogoUrl && (
+                <span
+                  className={cn(
+                    "h-6 w-px",
+                    scrolled ? "bg-slate-300" : "bg-white/30",
+                  )}
+                />
+              )}
+
               {sacLogoUrl ? (
                 <img
                   src={sacLogoUrl}
                   alt="SAC Logo"
+                  loading="eager"
                   className={cn(
                     "h-11 w-auto object-contain transition-opacity duration-300",
                     scrolled ? "opacity-100" : "opacity-80",
@@ -179,7 +204,11 @@ export const Navbar = () => {
               <Link
                 to="/admin/messages"
                 aria-label={`Unread messages: ${unreadCount}`}
-                className="relative p-2 rounded-full hover:bg-slate-100 transition-colors"
+                title="Unread messages"
+                className={cn(
+                  "relative p-2 rounded-full transition-colors",
+                  scrolled ? "hover:bg-slate-100" : "hover:bg-white/10",
+                )}
               >
                 <Bell className="h-5 w-5 text-slate-700" />
 

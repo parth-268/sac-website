@@ -17,6 +17,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   useClubMembers,
   useBulkInsertClubMembers,
+  useDeleteClubJuniorMembers,
 } from "@/hooks/useClubMembers";
 import { useDeleteClubSeniorMembers } from "@/hooks/useClubMembers";
 import { useState, useEffect } from "react";
@@ -47,9 +48,19 @@ import {
   Mail,
   Linkedin,
   Instagram,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+
+type EditableMember = {
+  id?: string;
+  uid: string;
+  name: string;
+  designation: string;
+  phone: string | null;
+};
 
 const normalizeUrl = (value: string) => {
   if (!value) return "";
@@ -62,6 +73,8 @@ const SortableSeniorRow = ({
   index,
   onChange,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
   member: {
     uid: string;
@@ -72,6 +85,8 @@ const SortableSeniorRow = ({
   index: number;
   onChange: (idx: number, key: string, value: string) => void;
   onRemove: (idx: number) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: member.uid });
@@ -80,9 +95,9 @@ const SortableSeniorRow = ({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className="rounded-md border bg-background/60 p-3"
+      className="rounded-md border bg-background/60 px-3 py-2"
     >
-      <div className="grid grid-cols-[18px_1fr_1fr_1fr_28px] gap-2 items-center">
+      <div className="grid grid-cols-[16px_1fr_1fr_1fr_20px_20px] gap-1.5 items-center">
         <div
           {...attributes}
           {...listeners}
@@ -92,31 +107,60 @@ const SortableSeniorRow = ({
         >
           ⋮⋮
         </div>
-
         <Input
           placeholder="Name"
+          className="h-8 text-sm"
           value={member.name}
           onChange={(e) => onChange(index, "name", e.target.value)}
         />
         <Input
           placeholder="Designation"
+          className="h-8 text-sm"
           value={member.designation}
           onChange={(e) => onChange(index, "designation", e.target.value)}
         />
         <Input
           placeholder="Phone"
+          className="h-8 text-sm"
           value={member.phone ?? ""}
           onChange={(e) => onChange(index, "phone", e.target.value)}
         />
-
         <button
           type="button"
           onClick={() => onRemove(index)}
           className="text-muted-foreground hover:text-destructive transition-colors"
           aria-label="Remove member"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
+        {/* Inline move buttons */}
+        {onMoveDown ? (
+          <button
+            type="button"
+            onClick={onMoveDown}
+            className="text-muted-foreground hover:text-primary transition-colors h-6 w-6 flex items-center justify-center"
+            aria-label="Move to Junior"
+            title="Move to Junior"
+            tabIndex={0}
+            style={{ background: "none", border: "none" }}
+          >
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        ) : onMoveUp ? (
+          <button
+            type="button"
+            onClick={onMoveUp}
+            className="text-muted-foreground hover:text-primary transition-colors h-6 w-6 flex items-center justify-center"
+            aria-label="Move to Senior"
+            title="Move to Senior"
+            tabIndex={0}
+            style={{ background: "none", border: "none" }}
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+        ) : (
+          <span />
+        )}
       </div>
     </div>
   );
@@ -148,15 +192,9 @@ const AdminClubs = () => {
     null,
   );
 
-  const [seniorMembers, setSeniorMembers] = useState<
-    {
-      id?: string; // DB id (if exists)
-      uid: string; // stable client id (always present)
-      name: string;
-      designation: string;
-      phone: string | null;
-    }[]
-  >([]);
+  const [seniorMembers, setSeniorMembers] = useState<EditableMember[]>([]);
+
+  const [juniorMembers, setJuniorMembers] = useState<EditableMember[]>([]);
 
   const [membersDirty, setMembersDirty] = useState(false);
 
@@ -176,9 +214,15 @@ const AdminClubs = () => {
     "senior",
   );
 
+  const { data: juniorMembersData } = useClubMembers(
+    activeClubForMembers?.id,
+    "junior",
+  );
+
   const bulkInsertMembers = useBulkInsertClubMembers();
 
   const deleteSeniorMembers = useDeleteClubSeniorMembers();
+  const deleteJuniorMembers = useDeleteClubJuniorMembers();
 
   // Sync query data to local state
 
@@ -196,6 +240,20 @@ const AdminClubs = () => {
     );
     setMembersDirty(false);
   }, [seniorMembersData]);
+
+  useEffect(() => {
+    if (!juniorMembersData) return;
+
+    setJuniorMembers(
+      juniorMembersData.map((m) => ({
+        id: m.id,
+        uid: createUID(),
+        name: m.name,
+        designation: m.designation,
+        phone: m.phone,
+      })),
+    );
+  }, [juniorMembersData]);
 
   const handleSeniorExcelImport = async (file: File) => {
     try {
@@ -372,7 +430,10 @@ const AdminClubs = () => {
                     <Input
                       value={formData.name}
                       onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
+                        setFormData({
+                          ...formData,
+                          name: e.target.value.toUpperCase(),
+                        })
                       }
                       required
                     />
@@ -673,6 +734,7 @@ const AdminClubs = () => {
             setMembersDirty(false);
             setActiveClubForMembers(null);
             setSeniorMembers([]);
+            setJuniorMembers([]);
           }
         }}
       >
@@ -684,7 +746,7 @@ const AdminClubs = () => {
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 space-y-6">
             {/* SENIOR MEMBERS */}
-            <div className="space-y-4 pb-6 border-b">
+            <div className="space-y-2 pb-4 border-b">
               <div className="flex items-center gap-3 flex-wrap">
                 <h3 className="text-sm font-semibold">Senior Members</h3>
                 <p className="text-xs text-muted-foreground">
@@ -761,25 +823,33 @@ const AdminClubs = () => {
                   strategy={verticalListSortingStrategy}
                 >
                   {seniorMembers.map((member, idx) => (
-                    <SortableSeniorRow
-                      key={member.uid}
-                      member={member}
-                      index={idx}
-                      onChange={(i, key, value) => {
-                        setMembersDirty(true);
-                        setSeniorMembers((prev) => {
-                          const copy = [...prev];
-                          (copy[i] as any)[key] = value;
-                          return copy;
-                        });
-                      }}
-                      onRemove={(i) => {
-                        setMembersDirty(true);
-                        setSeniorMembers((prev) =>
-                          prev.filter((_, idx) => idx !== i),
-                        );
-                      }}
-                    />
+                    <div key={member.uid} className="space-y-1">
+                      <SortableSeniorRow
+                        member={member}
+                        index={idx}
+                        onChange={(i, key, value) => {
+                          setMembersDirty(true);
+                          setSeniorMembers((prev) => {
+                            const copy = [...prev];
+                            (copy[i] as any)[key] = value;
+                            return copy;
+                          });
+                        }}
+                        onRemove={(i) => {
+                          setMembersDirty(true);
+                          setSeniorMembers((prev) =>
+                            prev.filter((_, idx2) => idx2 !== i),
+                          );
+                        }}
+                        onMoveDown={() => {
+                          setMembersDirty(true);
+                          setSeniorMembers((prev) =>
+                            prev.filter((m) => m.uid !== member.uid),
+                          );
+                          setJuniorMembers((prev) => [...prev, member]);
+                        }}
+                      />
+                    </div>
                   ))}
                 </SortableContext>
               </DndContext>
@@ -806,23 +876,98 @@ const AdminClubs = () => {
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold">Junior Members</h3>
-              <p className="text-xs text-muted-foreground">
-                Only total count is required for junior members.
-              </p>
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Junior Members</h3>
+                <p className="text-xs text-muted-foreground">
+                  Add junior member details.
+                </p>
 
-              <Input
-                type="number"
-                min={0}
-                value={activeClubForMembers?.junior_count ?? 0}
-                onChange={(e) =>
-                  setActiveClubForMembers((p: any | null) =>
-                    p
-                      ? { ...p, junior_count: parseInt(e.target.value) || 0 }
-                      : p,
-                  )
-                }
-              />
+                {juniorMembers.length === 0 && (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    No junior members added yet.
+                  </div>
+                )}
+
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={({ active, over }) => {
+                    if (!over || active.id === over.id) return;
+
+                    setMembersDirty(true);
+                    setJuniorMembers((items) => {
+                      const oldIndex = items.findIndex(
+                        (m) => m.uid === active.id,
+                      );
+                      const newIndex = items.findIndex(
+                        (m) => m.uid === over.id,
+                      );
+
+                      if (oldIndex === -1 || newIndex === -1) return items;
+
+                      const updated = [...items];
+                      const [moved] = updated.splice(oldIndex, 1);
+                      updated.splice(newIndex, 0, moved);
+                      return updated;
+                    });
+                  }}
+                >
+                  <SortableContext
+                    items={juniorMembers.map((m) => m.uid)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {juniorMembers.map((member, idx) => (
+                      <div key={member.uid} className="space-y-1">
+                        <SortableSeniorRow
+                          member={member}
+                          index={idx}
+                          onChange={(i, key, value) => {
+                            setMembersDirty(true);
+                            setJuniorMembers((prev) => {
+                              const copy = [...prev];
+                              (copy[i] as any)[key] = value;
+                              return copy;
+                            });
+                          }}
+                          onRemove={(i) => {
+                            setMembersDirty(true);
+                            setJuniorMembers((prev) =>
+                              prev.filter((_, index) => index !== i),
+                            );
+                          }}
+                          onMoveUp={() => {
+                            setMembersDirty(true);
+                            setJuniorMembers((prev) =>
+                              prev.filter((m) => m.uid !== member.uid),
+                            );
+                            setSeniorMembers((prev) => [...prev, member]);
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </SortableContext>
+                </DndContext>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMembersDirty(true);
+                    setJuniorMembers((p) => [
+                      ...p,
+                      {
+                        uid: createUID(),
+                        name: "",
+                        designation: "",
+                        phone: null,
+                      },
+                    ]);
+                  }}
+                >
+                  + Add Junior Member
+                </Button>
+              </div>
             </div>
           </div>
           <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 rounded-b-md">
@@ -842,6 +987,9 @@ const AdminClubs = () => {
                     await deleteSeniorMembers.mutateAsync(
                       activeClubForMembers.id,
                     );
+                    await deleteJuniorMembers.mutateAsync(
+                      activeClubForMembers.id,
+                    );
 
                     await bulkInsertMembers.mutateAsync({
                       club_id: activeClubForMembers.id,
@@ -855,12 +1003,26 @@ const AdminClubs = () => {
                         })),
                     });
 
+                    await bulkInsertMembers.mutateAsync({
+                      club_id: activeClubForMembers.id,
+                      members: juniorMembers
+                        .filter((m) => m.name && m.designation)
+                        .map((m) => ({
+                          name: m.name,
+                          designation: m.designation,
+                          phone: m.phone,
+                          role: "junior",
+                        })),
+                    });
+
                     await updateClub.mutateAsync({
                       id: activeClubForMembers.id,
-                      junior_count: activeClubForMembers.junior_count,
+                      senior_count: seniorMembers.length,
+                      junior_count: juniorMembers.length,
                     });
 
                     toast.success("Members updated");
+                    setMembersDirty(false);
                     setMembersDialogOpen(false);
                   } catch {
                     toast.error("Failed to save members");

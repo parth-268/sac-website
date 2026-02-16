@@ -19,24 +19,42 @@ import {
 } from "framer-motion";
 import { icons } from "lucide-react";
 import { useState, useEffect } from "react";
+import type { Tables } from "@/integrations/supabase/types";
 
 const overlay = {
   hidden: { opacity: 0 },
   visible: { opacity: 1 },
 };
 
+type Club = Tables<"clubs">;
 const ClubsPage = () => {
   const prefersReducedMotion = !!useReducedMotion();
-  const [activeClub, setActiveClub] = useState<any | null>(null);
+  const [activeClub, setActiveClub] = useState<Club | null>(null);
+  const [activeMemberTab, setActiveMemberTab] = useState<"senior" | "junior">(
+    "senior",
+  );
+  useEffect(() => {
+    setActiveMemberTab("senior");
+  }, [activeClub?.id]);
 
   useEffect(() => {
-    if (activeClub) {
-      const original = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = original;
-      };
-    }
+    if (!activeClub) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveClub(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [activeClub]);
 
   const dialog: Variants = {
@@ -56,6 +74,7 @@ const ClubsPage = () => {
   });
 
   const { data: seniorMembers } = useClubMembers(activeClub?.id, "senior");
+  const { data: juniorMembers } = useClubMembers(activeClub?.id, "junior");
 
   const getIcon = (iconName: string) => {
     const Icon = icons[iconName as keyof typeof icons] as any;
@@ -63,7 +82,10 @@ const ClubsPage = () => {
   };
 
   const Skeleton = ({ className }: { className: string }) => (
-    <div className={`animate-pulse rounded-md bg-muted ${className}`} />
+    <div
+      aria-hidden="true"
+      className={`animate-pulse rounded-md bg-muted ${className}`}
+    />
   );
 
   return (
@@ -99,6 +121,8 @@ const ClubsPage = () => {
                   role="button"
                   tabIndex={0}
                   aria-label={`Open details for ${club.name}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={activeClub?.id === club.id}
                   onClick={() => setActiveClub(club)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -118,27 +142,36 @@ const ClubsPage = () => {
                   }}
                   className="group relative flex flex-col rounded-2xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-md cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
-                  {/* Image / Header */}
-                  <div className="relative h-36 bg-secondary overflow-hidden">
-                    {club.image_url ? (
-                      <img
-                        src={club.image_url}
-                        alt={club.name}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/20">
-                        <Users className="w-10 h-10" />
-                      </div>
-                    )}
+                  {/* Header */}
+                  <div className="relative h-36 bg-secondary flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-background/40 to-background/80" />
 
-                    {/* Icon badge */}
-                    <div className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-md p-2 rounded-lg border border-border shadow-sm text-accent">
-                      {getIcon(club.icon)}
+                    {/* Logo badge */}
+                    <div className="relative z-10 flex flex-col items-center text-center px-4">
+                      <div className="w-16 h-16 rounded-2xl bg-background border border-border shadow-sm mb-3 overflow-hidden">
+                        {club.logo_url ? (
+                          <img
+                            src={club.logo_url}
+                            alt={`${club.name} logo`}
+                            width={64}
+                            height={64}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-accent">
+                            {getIcon(club.icon ?? "users")}
+                          </div>
+                        )}
+                      </div>
+
+                      <h3 className="font-heading text-md font-semibold text-foreground line-clamp-2">
+                        {club.name}
+                      </h3>
                     </div>
 
-                    {/* Members */}
+                    {/* Members badge */}
                     <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-2 py-1 rounded-full text-[10px] font-semibold text-white border border-white/10">
                       {club.senior_count + club.junior_count > 0
                         ? `${club.senior_count + club.junior_count} members`
@@ -148,10 +181,6 @@ const ClubsPage = () => {
 
                   {/* Content */}
                   <div className="p-5 flex flex-col flex-1">
-                    <h3 className="font-heading text-lg font-semibold text-foreground mb-1 line-clamp-1">
-                      {club.name}
-                    </h3>
-
                     <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mb-4">
                       {club.description}
                     </p>
@@ -191,6 +220,7 @@ const ClubsPage = () => {
                       {/* CTA */}
                       <button
                         type="button"
+                        aria-label={`Explore ${club.name}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveClub(club);
@@ -238,13 +268,17 @@ const ClubsPage = () => {
               role="dialog"
               aria-modal="true"
               aria-labelledby="club-title"
+              aria-describedby="club-description"
+              tabIndex={-1}
               variants={dialog}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background shadow-xl overscroll-contain"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background shadow-xl overscroll-contain px-2"
             >
               {/* Header */}
               <div className="px-6 pt-6 pb-4 border-b">
                 <button
+                  type="button"
+                  autoFocus
                   onClick={() => setActiveClub(null)}
                   className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
                   aria-label="Close dialog"
@@ -295,55 +329,151 @@ const ClubsPage = () => {
                       ? "About the Club"
                       : "About the Contingent"}
                   </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
+                  <p
+                    id="club-description"
+                    className="text-sm text-muted-foreground leading-relaxed"
+                  >
                     {activeClub.description}
                   </p>
                 </section>
 
-                {/* Senior Members */}
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Senior Team
-                  </h3>
+                {/* Member Tabs */}
+                <section>
+                  <div
+                    className="flex gap-6 border-b pb-2 flex-wrap"
+                    role="tablist"
+                    aria-label="Club Member Tabs"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeMemberTab === "senior"}
+                      className={
+                        activeMemberTab === "senior"
+                          ? "text-accent border-b-2 border-accent pb-2 text-sm font-semibold"
+                          : "text-muted-foreground hover:text-foreground pb-2 text-sm font-medium"
+                      }
+                      onClick={() => setActiveMemberTab("senior")}
+                      tabIndex={activeMemberTab === "senior" ? 0 : -1}
+                    >
+                      Senior Team
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeMemberTab === "junior"}
+                      className={
+                        activeMemberTab === "junior"
+                          ? "text-accent border-b-2 border-accent pb-2 text-sm font-semibold"
+                          : "text-muted-foreground hover:text-foreground pb-2 text-sm font-medium"
+                      }
+                      onClick={() => setActiveMemberTab("junior")}
+                      tabIndex={activeMemberTab === "junior" ? 0 : -1}
+                    >
+                      Junior Team
+                    </button>
+                  </div>
 
-                  {!seniorMembers ? (
-                    <ul className="space-y-3">
-                      {[...Array(3)].map((_, i) => (
-                        <li key={i} className="px-4 py-3 border rounded-lg">
-                          <Skeleton className="h-4 w-32 mb-2" />
-                          <Skeleton className="h-3 w-24" />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : seniorMembers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Senior team details will be updated soon.
-                    </p>
-                  ) : (
-                    <ul className="divide-y border rounded-lg overflow-hidden bg-background">
-                      {seniorMembers.map((m) => (
-                        <li
-                          key={m.id}
-                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
-                        >
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {m.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {m.designation}
-                            </div>
-                          </div>
+                  <div className="mt-4">
+                    {activeMemberTab === "senior" && (
+                      // Senior Members JSX as before
+                      <section className="space-y-3">
+                        {/* <h3 className="text-sm font-semibold text-foreground">
+                          Senior Team
+                        </h3> */}
+                        {!seniorMembers ? (
+                          <ul className="space-y-3">
+                            {[...Array(3)].map((_, i) => (
+                              <li
+                                key={i}
+                                className="px-4 py-3 border rounded-lg"
+                              >
+                                <Skeleton className="h-4 w-32 mb-2" />
+                                <Skeleton className="h-3 w-24" />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : seniorMembers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            Senior team details will be updated soon.
+                          </p>
+                        ) : (
+                          <ul className="divide-y border rounded-lg overflow-hidden bg-background">
+                            {seniorMembers.map((m) => (
+                              <li
+                                key={m.id}
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                              >
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    {m.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.designation}
+                                  </div>
+                                </div>
 
-                          {m.phone && (
-                            <div className="text-xs text-muted-foreground">
-                              {m.phone}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                                {m.phone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.phone}
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+                    {activeMemberTab === "junior" && (
+                      // Junior Members JSX as before
+                      <section className="space-y-3">
+                        {/* <h3 className="text-sm font-semibold text-foreground">
+                          Junior Team
+                        </h3> */}
+                        {!juniorMembers ? (
+                          <ul className="space-y-3">
+                            {[...Array(3)].map((_, i) => (
+                              <li
+                                key={i}
+                                className="px-4 py-3 border rounded-lg"
+                              >
+                                <Skeleton className="h-4 w-32 mb-2" />
+                                <Skeleton className="h-3 w-24" />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : juniorMembers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            Junior team details will be updated soon.
+                          </p>
+                        ) : (
+                          <ul className="divide-y border rounded-lg overflow-hidden bg-background">
+                            {juniorMembers.map((m) => (
+                              <li
+                                key={m.id}
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                              >
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    {m.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.designation}
+                                  </div>
+                                </div>
+
+                                {m.phone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.phone}
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+                  </div>
                 </section>
 
                 {/* Social links */}
