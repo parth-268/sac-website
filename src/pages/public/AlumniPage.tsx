@@ -39,31 +39,44 @@ const AlumniPage = () => {
 
   const batchYears = useMemo(() => {
     if (!alumni) return [];
-    return [...new Set(alumni.map((a) => a.batch_year).filter(Boolean))]
-      .sort()
-      .reverse();
+
+    return Array.from(
+      new Set(alumni.map((a) => String(a.batch_year)).filter(Boolean)),
+    ).sort((a, b) => Number(b) - Number(a));
   }, [alumni]);
 
   const filtered = useMemo(() => {
     if (!alumni) return [];
+
+    const query = searchQuery.trim().toLowerCase();
+
     return alumni.filter((a) => {
-      const s = searchQuery.toLowerCase();
-      return (
-        (a.name.toLowerCase().includes(s) ||
-          a.designation.toLowerCase().includes(s)) &&
-        (batchFilter === "all" || a.batch_year === batchFilter)
-      );
+      const matchesSearch =
+        query === "" ||
+        a.name.toLowerCase().includes(query) ||
+        a.designation.toLowerCase().includes(query);
+
+      const matchesBatch =
+        batchFilter === "all" || String(a.batch_year) === batchFilter;
+
+      return matchesSearch && matchesBatch;
     });
   }, [alumni, searchQuery, batchFilter]);
 
   const grouped = useMemo(() => {
     const map: Record<string, typeof filtered> = {};
+
     filtered.forEach((a) => {
-      const key = a.batch_year || "Legacy";
-      map[key] ??= [];
+      const key = a.batch_year ? String(a.batch_year) : "Legacy";
+      if (!map[key]) map[key] = [];
       map[key].push(a);
     });
-    return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
+
+    return Object.entries(map).sort(([a], [b]) => {
+      if (a === "Legacy") return 1;
+      if (b === "Legacy") return -1;
+      return Number(b) - Number(a);
+    });
   }, [filtered]);
 
   return (
@@ -93,11 +106,21 @@ const AlumniPage = () => {
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
               />
               <Input
-                placeholder="Search alumni by name or role"
+                placeholder="Search alumni by name or role…"
                 className="pl-9 bg-background"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setSearchQuery("")}
+                >
+                  ×
+                </button>
+              )}
             </div>
 
             <Select value={batchFilter} onValueChange={setBatchFilter}>
@@ -121,12 +144,15 @@ const AlumniPage = () => {
               <Loader2 className="h-9 w-9 animate-spin text-accent" />
             </div>
           ) : grouped.length === 0 ? (
-            <div className="text-center py-32 text-muted-foreground">
+            <div
+              className="text-center py-32 text-muted-foreground"
+              aria-live="polite"
+            >
               No alumni match your search.
             </div>
           ) : (
             grouped.map(([batch, people]) => (
-              <section key={batch} className="mb-16">
+              <section key={`batch-${batch}`} className="mb-16">
                 {/* Batch Header */}
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -146,16 +172,20 @@ const AlumniPage = () => {
 
                 {/* Alumni Grid */}
                 <motion.div
+                  layout
                   variants={container}
                   initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true, margin: "-120px" }}
+                  animate="visible"
                   className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                 >
                   {people.map((person) => (
                     <motion.article
-                      key={person.id}
-                      variants={item}
+                      key={`${person.id}-${batch}`}
+                      layout
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 12 }}
+                      transition={{ duration: 0.35, ease: "easeOut" }}
                       whileHover={{
                         y: -4,
                         boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
@@ -166,26 +196,18 @@ const AlumniPage = () => {
                           mass: 0.6,
                         },
                       }}
-                      className="relative overflow-hidden rounded-3xl border border-border bg-card p-4 will-change-transform"
+                      className="relative overflow-hidden rounded-3xl border border-border bg-card p-4"
                     >
-                      {/* Accent glow */}
-                      <motion.div
-                        aria-hidden
-                        initial={{ opacity: 0 }}
-                        whileHover={{ opacity: 1 }}
-                        transition={{ duration: 0.25, ease: "easeOut" }}
-                        className="pointer-events-none absolute inset-0"
-                      />
-
                       <div className="flex items-start gap-4 relative z-10">
                         {/* Avatar */}
                         <Avatar className="h-14 w-14 border border-border bg-muted shrink-0">
                           <AvatarImage
                             src={person.image_url ?? undefined}
                             className="object-cover"
+                            loading="lazy"
                           />
                           <AvatarFallback className="font-semibold text-sm text-muted-foreground">
-                            {person.name.slice(0, 2).toUpperCase()}
+                            {(person.name || "").slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
 
@@ -194,10 +216,6 @@ const AlumniPage = () => {
                           <h3 className="font-semibold text-base leading-tight truncate">
                             {person.name}
                           </h3>
-
-                          <p className="text-sm text-muted-foreground leading-snug line-clamp-2">
-                            {person.designation}
-                          </p>
 
                           {person.linkedin_url && (
                             <a

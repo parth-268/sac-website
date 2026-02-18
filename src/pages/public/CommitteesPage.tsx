@@ -247,7 +247,7 @@ const CommitteesPage = () => {
                       </h3>
                     </div>
 
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3">
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 whitespace-pre-line">
                       {committee.description}
                     </p>
 
@@ -342,7 +342,7 @@ const CommitteesPage = () => {
                     <h3 className="text-sm font-semibold text-foreground">
                       About the Committee
                     </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                       {activeCommittee.description}
                     </p>
                   </div>

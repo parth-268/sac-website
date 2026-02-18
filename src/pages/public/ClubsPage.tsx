@@ -85,7 +85,7 @@ const ClubsPage = () => {
     <div
       aria-hidden="true"
       className={`animate-pulse rounded-md bg-muted ${className}`}
-    />
+    ></div>
   );
 
   return (
@@ -331,7 +331,7 @@ const ClubsPage = () => {
                   </h3>
                   <p
                     id="club-description"
-                    className="text-sm text-muted-foreground leading-relaxed"
+                    className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line"
                   >
                     {activeClub.description}
                   </p>
