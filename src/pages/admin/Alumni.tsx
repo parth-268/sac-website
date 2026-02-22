@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   Upload,
 } from "lucide-react";
+import { toast } from "sonner";
 
 let XLSXModule: typeof import("xlsx") | null = null;
 
@@ -251,28 +252,28 @@ export default function AdminAlumni() {
     const existingKeys = new Set(
       alumni?.map((a) => `${a.name.toLowerCase()}-${a.batch_year}`),
     );
-
-    await Promise.allSettled(
-      excelPreview
-        .filter((row) => {
-          const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
-          return !existingKeys.has(key);
-        })
-        .map((row) =>
-          createMember.mutateAsync({
-            name: String(row.name),
-            designation: String(row.designation),
-            batch_year: String(row.batch_year),
-            email: row.email || "",
-            phone: row.phone || "",
-            linkedin_url: row.linkedin_url || "",
-            is_alumni: true,
-            is_active: false,
-          }),
-        ),
+    const rowsToInsert = excelPreview.filter((row) => {
+      const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
+      return !existingKeys.has(key);
+    });
+    const results = await Promise.allSettled(
+      rowsToInsert.map((row) =>
+        createMember.mutateAsync({
+          name: String(row.name),
+          designation: String(row.designation),
+          batch_year: String(row.batch_year),
+          email: row.email || "",
+          phone: row.phone || "",
+          linkedin_url: row.linkedin_url || "",
+          is_alumni: true,
+          is_active: false,
+        }),
+      ),
     );
-
     setExcelPreview([]);
+    toast.success(
+      `${results.filter((r) => r.status === "fulfilled").length} alumni imported`,
+    );
   };
 
   if (isLoading)
@@ -479,25 +480,54 @@ export default function AdminAlumni() {
               </div>
               <div className="flex gap-3 text-slate-400 flex-1">
                 {/* Contact Icons Logic */}
-                <div
-                  className={
-                    member.linkedin_url ? "text-blue-600" : "opacity-20"
-                  }
-                >
-                  <Linkedin className="w-4 h-4" />
-                </div>
-                <div className={member.email ? "text-slate-600" : "opacity-20"}>
-                  <Mail className="w-4 h-4" />
-                </div>
-                <div className={member.phone ? "text-slate-600" : "opacity-20"}>
-                  <Phone className="w-4 h-4" />
-                </div>
+                {member.linkedin_url ? (
+                  <a
+                    href={member.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="LinkedIn profile"
+                    className="text-blue-600"
+                  >
+                    <Linkedin className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <div className="opacity-20 pointer-events-none">
+                    <Linkedin className="w-4 h-4" />
+                  </div>
+                )}
+                {member.email ? (
+                  <a
+                    href={`mailto:${member.email}`}
+                    aria-label="Send email"
+                    className="text-slate-600"
+                  >
+                    <Mail className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <div className="opacity-20 pointer-events-none">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                )}
+                {member.phone ? (
+                  <a
+                    href={`tel:${member.phone}`}
+                    aria-label="Call phone number"
+                    className="text-slate-600"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <div className="opacity-20 pointer-events-none">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-end gap-2 md:w-[20%]">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => openEdit(member)}
+                  aria-label="Edit alumni"
                 >
                   <Pencil className="w-4 h-4" />
                 </Button>
@@ -506,6 +536,7 @@ export default function AdminAlumni() {
                   size="sm"
                   onClick={() => handleRestore(member.id, member.name)}
                   className="text-blue-500 hover:bg-blue-50"
+                  aria-label="Restore alumni to team"
                 >
                   <Undo2 className="w-4 h-4" />
                 </Button>
@@ -514,6 +545,7 @@ export default function AdminAlumni() {
                   size="sm"
                   onClick={() => deleteMember.mutate(member.id)}
                   className="text-red-400 hover:bg-red-50"
+                  aria-label="Delete alumni"
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
@@ -526,11 +558,17 @@ export default function AdminAlumni() {
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg h-[85vh] p-0 flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{editingId ? "Edit" : "Add"} Alumni</DialogTitle>
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-lg font-semibold">
+              {editingId ? "Edit Alumni" : "Add Alumni"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <div className="flex-1 overflow-y-auto px-6 py-2">
+            <form
+              id="alumni-form"
+              onSubmit={handleSubmit}
+              className="space-y-4 pt-2"
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Name</Label>
@@ -548,6 +586,9 @@ export default function AdminAlumni() {
                       setForm({ ...form, batch_year: e.target.value })
                     }
                     required
+                    inputMode="numeric"
+                    pattern="\d{4}"
+                    placeholder="YYYY"
                   />
                 </div>
               </div>
@@ -594,21 +635,30 @@ export default function AdminAlumni() {
                   }
                 />
               </div>
+            </form>
+          </div>
+          <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 w-full rounded-md">
+            <div className="flex justify-end gap-3 px-6 py-4">
               <Button
                 type="submit"
+                form="alumni-form"
                 className="w-full"
                 disabled={updateMember.isPending || createMember.isPending}
               >
                 Save
               </Button>
-            </form>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Undo Snackbar for bulk delete */}
       {recentlyDeleted.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg flex items-center gap-4">
+        <div
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg flex items-center gap-4"
+          role="status"
+          aria-live="polite"
+        >
           <span className="text-sm">
             {recentlyDeleted.length} alumni deleted
           </span>
