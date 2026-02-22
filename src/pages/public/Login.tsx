@@ -8,7 +8,7 @@ import { Loader2, ArrowLeft, Shield, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
 import { SEO } from "@/components/SEO";
-import heroCampus from "@/assets/hero_campus.png"; 
+import heroCampus from "@/assets/hero_campus.png";
 import googleLogo from "@/assets/google.svg";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { supabase } from "@/integrations/supabase/client";
