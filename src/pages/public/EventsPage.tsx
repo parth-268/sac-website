@@ -93,18 +93,24 @@ export default function EventsPage() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return {
-      upcoming: events.filter((e) => {
-        const d = new Date(e.event_date);
-        d.setHours(0, 0, 0, 0);
-        return d >= today;
-      }),
-      past: events.filter((e) => {
+    const upcoming = events.filter((e) => {
+      const d = new Date(e.event_date);
+      d.setHours(0, 0, 0, 0);
+      return d >= today;
+    });
+
+    const past = events
+      .filter((e) => {
         const d = new Date(e.event_date);
         d.setHours(0, 0, 0, 0);
         return d < today;
-      }),
-    };
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.event_date).getTime() - new Date(a.event_date).getTime(),
+      );
+
+    return { upcoming, past };
   }, [events]);
 
   // Split reports into sacReports and otherReports

@@ -73,7 +73,8 @@ export const useUpcomingEvents = () => {
     queryKey: ["events", "upcoming", activeYear?.year],
     enabled: Boolean(activeYear?.year),
     queryFn: async () => {
-      const today = new Date().toISOString().split("T")[0];
+      const now = new Date();
+      const todayStr = now.toLocaleDateString("en-CA");
 
       const { data, error } = await supabase
         .from("events")
@@ -81,7 +82,7 @@ export const useUpcomingEvents = () => {
         .eq("academic_year", activeYear!.year)
         .eq("is_published", true)
         .eq("is_archived", false)
-        .gte("event_date", today)
+        .gte("event_date", todayStr)
         .order("event_date", { ascending: true });
 
       if (error) throw error;
