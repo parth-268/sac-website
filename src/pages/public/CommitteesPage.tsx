@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -65,6 +65,7 @@ const CommitteesPage = () => {
   const prefersReducedMotion = !!useReducedMotion();
 
   const [membersTab, setMembersTab] = useState<"senior" | "junior">("senior");
+  const hasInitialisedTab = useRef(false);
 
   useEffect(() => {
     if (activeCommittee) {
@@ -80,11 +81,16 @@ const CommitteesPage = () => {
     activeCommittee?.id,
   );
 
+  // Ref for the dialog container
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!activeCommittee) return;
+    const dialogNode = dialogRef.current;
+    if (!dialogNode) return;
 
+    // Only query focusable elements inside the dialog
     const focusable = Array.from(
-      document.querySelectorAll<HTMLElement>(
+      dialogNode.querySelectorAll<HTMLElement>(
         'button, a[href], input, textarea, [tabindex]:not([tabindex="-1"])',
       ),
     );
@@ -114,6 +120,10 @@ const CommitteesPage = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeCommittee, setSearchParams]);
+
+  useEffect(() => {
+    hasInitialisedTab.current = false;
+  }, [activeCommittee?.id]);
 
   const getIcon = (iconName: string) => {
     const Icon = icons[iconName as keyof typeof icons] as any;
@@ -146,18 +156,12 @@ const CommitteesPage = () => {
   }, [setSearchParams]);
 
   useEffect(() => {
-    if (!activeCommittee) return;
+    if (!activeCommittee || !members) return;
+    if (hasInitialisedTab.current) return;
 
-    if (seniorMembers.length > 0) {
-      setMembersTab("senior");
-    } else {
-      setMembersTab("junior");
-    }
-  }, [activeCommittee, seniorMembers.length]);
-
-  useEffect(() => {
-    if (!activeCommittee) setMembersTab("senior");
-  }, [activeCommittee]);
+    setMembersTab(seniorMembers.length > 0 ? "senior" : "junior");
+    hasInitialisedTab.current = true;
+  }, [activeCommittee, members, seniorMembers.length]);
 
   const Skeleton = useCallback(
     ({ className }: { className: string }) => (
@@ -280,6 +284,7 @@ const CommitteesPage = () => {
 
             {/* Dialog */}
             <motion.div
+              ref={dialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby="committee-title"

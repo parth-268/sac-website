@@ -48,8 +48,16 @@ const ClubsPage = () => {
     return clubs.find((c) => c.id === clubId) ?? null;
   }, [clubId, clubs]);
 
+  // Reset member tab when club changes
+  useEffect(() => {
+    if (clubId) {
+      setActiveMemberTab("senior");
+    }
+  }, [clubId]);
+
   // Central dialog close handler
   const handleCloseDialog = useCallback(() => {
+    setActiveMemberTab("senior");
     setSearchParams({});
   }, [setSearchParams]);
 
