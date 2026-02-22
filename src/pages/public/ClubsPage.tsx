@@ -18,7 +18,8 @@ import {
   Variants,
 } from "framer-motion";
 import { icons } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { Tables } from "@/integrations/supabase/types";
 
 const overlay = {
@@ -29,14 +30,30 @@ const overlay = {
 type Club = Tables<"clubs">;
 const ClubsPage = () => {
   const prefersReducedMotion = !!useReducedMotion();
-  const [activeClub, setActiveClub] = useState<Club | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeMemberTab, setActiveMemberTab] = useState<"senior" | "junior">(
     "senior",
   );
-  useEffect(() => {
-    setActiveMemberTab("senior");
-  }, [activeClub?.id]);
 
+  // Derive clubId from URL search params
+  const clubId = searchParams.get("club");
+
+  // Derive activeClub from clubs and clubId
+  const { data: clubs, isLoading } = useClubs({
+    onlyActive: true,
+  });
+
+  const activeClub = useMemo(() => {
+    if (!clubId || !clubs) return null;
+    return clubs.find((c) => c.id === clubId) ?? null;
+  }, [clubId, clubs]);
+
+  // Central dialog close handler
+  const handleCloseDialog = useCallback(() => {
+    setSearchParams({});
+  }, [setSearchParams]);
+
+  // Escape key and body scroll lock effect
   useEffect(() => {
     if (!activeClub) return;
 
@@ -45,7 +62,7 @@ const ClubsPage = () => {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setActiveClub(null);
+        setSearchParams({});
       }
     };
 
@@ -55,37 +72,43 @@ const ClubsPage = () => {
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeClub]);
+  }, [activeClub, setSearchParams]);
 
-  const dialog: Variants = {
-    hidden: { y: prefersReducedMotion ? 0 : 12, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: prefersReducedMotion
-        ? { duration: 0.2 }
-        : { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
-    },
-    exit: { opacity: 0, transition: { duration: 0.2 } },
-  };
-
-  const { data: clubs, isLoading } = useClubs({
-    onlyActive: true,
-  });
+  const dialog: Variants = useMemo(
+    () => ({
+      hidden: { y: prefersReducedMotion ? 0 : 12, opacity: 0 },
+      visible: {
+        y: 0,
+        opacity: 1,
+        transition: prefersReducedMotion
+          ? { duration: 0.2 }
+          : { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+      },
+      exit: { opacity: 0, transition: { duration: 0.2 } },
+    }),
+    [prefersReducedMotion],
+  );
 
   const { data: seniorMembers } = useClubMembers(activeClub?.id, "senior");
   const { data: juniorMembers } = useClubMembers(activeClub?.id, "junior");
+  const totalMembers = useMemo(() => {
+    if (!activeClub) return 0;
+    return activeClub.senior_count + activeClub.junior_count;
+  }, [activeClub]);
 
-  const getIcon = (iconName: string) => {
+  const getIcon = useCallback((iconName: string) => {
     const Icon = icons[iconName as keyof typeof icons] as any;
     return Icon ? <Icon className="h-4 w-4" /> : <Users className="h-4 w-4" />;
-  };
+  }, []);
 
-  const Skeleton = ({ className }: { className: string }) => (
-    <div
-      aria-hidden="true"
-      className={`animate-pulse rounded-md bg-muted ${className}`}
-    ></div>
+  const Skeleton = useCallback(
+    ({ className }: { className: string }) => (
+      <div
+        aria-hidden
+        className={`animate-pulse rounded-md bg-muted ${className}`}
+      />
+    ),
+    [],
   );
 
   return (
@@ -123,11 +146,17 @@ const ClubsPage = () => {
                   aria-label={`Open details for ${club.name}`}
                   aria-haspopup="dialog"
                   aria-expanded={activeClub?.id === club.id}
-                  onClick={() => setActiveClub(club)}
+                  onClick={() =>
+                    setSearchParams({
+                      club: club.id,
+                    })
+                  }
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setActiveClub(club);
+                      setSearchParams({
+                        club: club.id,
+                      });
                     }
                   }}
                   initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
@@ -181,7 +210,7 @@ const ClubsPage = () => {
 
                   {/* Content */}
                   <div className="p-5 flex flex-col flex-1">
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 mb-4">
+                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2 mb-4">
                       {club.description}
                     </p>
 
@@ -223,7 +252,9 @@ const ClubsPage = () => {
                         aria-label={`Explore ${club.name}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setActiveClub(club);
+                          setSearchParams({
+                            club: club.id,
+                          });
                         }}
                         className="text-xs font-medium text-accent flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity focus:outline-none"
                       >
@@ -248,7 +279,6 @@ const ClubsPage = () => {
             animate="visible"
             exit="hidden"
             variants={overlay}
-            onClick={() => setActiveClub(null)}
           >
             {/* Backdrop */}
             <motion.div
@@ -261,6 +291,7 @@ const ClubsPage = () => {
                   ? { duration: 0.15 }
                   : { duration: 0.35, ease: [0.16, 1, 0.3, 1] }
               }
+              onClick={handleCloseDialog}
             />
 
             {/* Dialog */}
@@ -279,7 +310,7 @@ const ClubsPage = () => {
                 <button
                   type="button"
                   autoFocus
-                  onClick={() => setActiveClub(null)}
+                  onClick={handleCloseDialog}
                   className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
                   aria-label="Close dialog"
                 >
@@ -302,8 +333,7 @@ const ClubsPage = () => {
                     <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Users className="h-4 w-4" />
-                        {activeClub.senior_count + activeClub.junior_count}{" "}
-                        Members
+                        {totalMembers} Members
                       </span>
 
                       {activeClub.email && (
@@ -348,12 +378,15 @@ const ClubsPage = () => {
                       type="button"
                       role="tab"
                       aria-selected={activeMemberTab === "senior"}
+                      aria-controls="senior-panel"
                       className={
                         activeMemberTab === "senior"
                           ? "text-accent border-b-2 border-accent pb-2 text-sm font-semibold"
                           : "text-muted-foreground hover:text-foreground pb-2 text-sm font-medium"
                       }
-                      onClick={() => setActiveMemberTab("senior")}
+                      onClick={() => {
+                        setActiveMemberTab("senior");
+                      }}
                       tabIndex={activeMemberTab === "senior" ? 0 : -1}
                     >
                       Senior Team
@@ -362,12 +395,15 @@ const ClubsPage = () => {
                       type="button"
                       role="tab"
                       aria-selected={activeMemberTab === "junior"}
+                      aria-controls="junior-panel"
                       className={
                         activeMemberTab === "junior"
                           ? "text-accent border-b-2 border-accent pb-2 text-sm font-semibold"
                           : "text-muted-foreground hover:text-foreground pb-2 text-sm font-medium"
                       }
-                      onClick={() => setActiveMemberTab("junior")}
+                      onClick={() => {
+                        setActiveMemberTab("junior");
+                      }}
                       tabIndex={activeMemberTab === "junior" ? 0 : -1}
                     >
                       Junior Team
@@ -377,7 +413,11 @@ const ClubsPage = () => {
                   <div className="mt-4">
                     {activeMemberTab === "senior" && (
                       // Senior Members JSX as before
-                      <section className="space-y-3">
+                      <section
+                        id="senior-panel"
+                        role="tabpanel"
+                        className="space-y-3"
+                      >
                         {/* <h3 className="text-sm font-semibold text-foreground">
                           Senior Team
                         </h3> */}
@@ -426,7 +466,11 @@ const ClubsPage = () => {
                     )}
                     {activeMemberTab === "junior" && (
                       // Junior Members JSX as before
-                      <section className="space-y-3">
+                      <section
+                        id="junior-panel"
+                        role="tabpanel"
+                        className="space-y-3"
+                      >
                         {/* <h3 className="text-sm font-semibold text-foreground">
                           Junior Team
                         </h3> */}

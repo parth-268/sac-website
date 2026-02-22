@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
+import type { Tables } from "@/integrations/supabase/types";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageHero } from "@/components/layout/PageHero";
 import { useEvents } from "@/hooks/useEvents";
-import { useSacReports } from "@/hooks/useSacReports";
+import { usePublicSacReports } from "@/hooks/useSacReports";
 import { useActiveAcademicYear } from "@/hooks/useAcademicYears";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -24,6 +25,8 @@ import {
 } from "framer-motion";
 import { Skeleton } from "@/components/ui/skeleton";
 
+type EventRow = Tables<"events">;
+
 const fadeUp = (reduced: boolean): Variants => ({
   hidden: { opacity: 0, y: reduced ? 0 : 16 },
   visible: {
@@ -38,11 +41,26 @@ export default function EventsPage() {
   const { data: events, isLoading: eventsLoading } = useEvents(
     activeAcademicYear?.year,
   );
-  const { data: reports, isLoading: reportsLoading } = useSacReports();
+  const { data: reports, isLoading: reportsLoading } = usePublicSacReports();
   const [activeTab, setActiveTab] = useState("events");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    if (tab === "events" || tab === "reports" || tab === "others") {
+      setActiveTab(tab);
+    }
+  }, []);
+
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", v);
+    window.history.replaceState({}, "", `?${params.toString()}`);
+  };
   const prefersReducedMotion = useReducedMotion();
 
-  const [activeEvent, setActiveEvent] = useState<any | null>(null);
+  const [activeEvent, setActiveEvent] = useState<EventRow | null>(null);
+  const [activeReportUrl, setActiveReportUrl] = useState<string | null>(null);
 
   useEffect(() => {
     document.body.style.overflow = activeEvent ? "hidden" : "";
@@ -64,6 +82,11 @@ export default function EventsPage() {
 
   const isPageLoading = eventsLoading || !activeAcademicYear;
 
+  const motionVariants = useMemo(
+    () => fadeUp(!!prefersReducedMotion),
+    [prefersReducedMotion],
+  );
+
   const { upcoming, past } = useMemo(() => {
     if (!events) return { upcoming: [], past: [] };
 
@@ -84,6 +107,15 @@ export default function EventsPage() {
     };
   }, [events]);
 
+  // Split reports into sacReports and otherReports
+  const { sacReports, otherReports } = useMemo(() => {
+    if (!reports) return { sacReports: [], otherReports: [] };
+    return {
+      sacReports: reports.filter((r) => r.document_type === "sac_annual"),
+      otherReports: reports.filter((r) => r.document_type === "other"),
+    };
+  }, [reports]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -96,10 +128,10 @@ export default function EventsPage() {
         variant="centered"
       />
 
-      <main className="container-wide py-10 md:py-14">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <main className="container-wide py-8 md:py-10">
+        <Tabs value={activeTab} onValueChange={onTabChange}>
           {/* Tabs */}
-          <div className="flex justify-center mb-12">
+          <div className="flex justify-center mb-6">
             <TabsList className="h-10 rounded-full bg-secondary p-1">
               <TabsTrigger
                 value="events"
@@ -111,7 +143,13 @@ export default function EventsPage() {
                 value="reports"
                 className="rounded-full px-6 text-xs font-bold uppercase data-[state=active]:bg-background"
               >
-                Reports
+                SAC Reports
+              </TabsTrigger>
+              <TabsTrigger
+                value="others"
+                className="rounded-full px-6 text-xs font-bold uppercase data-[state=active]:bg-background"
+              >
+                Other Documents
               </TabsTrigger>
             </TabsList>
           </div>
@@ -122,6 +160,11 @@ export default function EventsPage() {
               <EventsSkeleton />
             ) : (
               <div className="space-y-14">
+                {upcoming.length === 0 && past.length === 0 && (
+                  <div className="text-sm text-muted-foreground py-12 text-center">
+                    No events announced yet.
+                  </div>
+                )}
                 {upcoming.length > 0 && (
                   <Section title="Upcoming" accent="green">
                     <CardGrid>
@@ -130,7 +173,7 @@ export default function EventsPage() {
                           key={event.id}
                           event={event}
                           delay={i * 0.04}
-                          variants={fadeUp(!!prefersReducedMotion)}
+                          variants={motionVariants}
                           onClick={() => setActiveEvent(event)}
                         />
                       ))}
@@ -146,7 +189,7 @@ export default function EventsPage() {
                           key={event.id}
                           event={event}
                           delay={i * 0.03}
-                          variants={fadeUp(!!prefersReducedMotion)}
+                          variants={motionVariants}
                           muted
                           onClick={() => setActiveEvent(event)}
                         />
@@ -158,16 +201,21 @@ export default function EventsPage() {
             )}
           </TabsContent>
 
-          {/* REPORTS */}
+          {/* SAC REPORTS */}
           <TabsContent value="reports">
             {reportsLoading ? (
               <ReportsSkeleton />
             ) : (
               <div className="grid sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
-                {reports?.map((report, i) => (
+                {sacReports && sacReports.length === 0 && (
+                  <div className="text-center text-sm text-muted-foreground py-12">
+                    No reports available yet.
+                  </div>
+                )}
+                {sacReports?.map((report, i) => (
                   <motion.div
                     key={report.id}
-                    variants={fadeUp(!!prefersReducedMotion)}
+                    variants={motionVariants}
                     initial="hidden"
                     whileInView="visible"
                     viewport={{ once: true }}
@@ -185,14 +233,81 @@ export default function EventsPage() {
                       </p>
                     </div>
                     {report.file_url && (
-                      <a
-                        href={report.file_url}
-                        target="_blank"
-                        className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
-                      >
-                        <Download className="w-3 h-3" />
-                        PDF
-                      </a>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setActiveReportUrl(report.file_url)}
+                          className="text-xs font-bold text-accent hover:underline flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/10"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View
+                        </button>
+                        <a
+                          href={report.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-muted-foreground hover:underline flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/10"
+                        >
+                          <Download className="w-3 h-3" />
+                          PDF
+                        </a>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* OTHER DOCUMENTS */}
+          <TabsContent value="others">
+            {reportsLoading ? (
+              <ReportsSkeleton />
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
+                {otherReports && otherReports.length === 0 && (
+                  <div className="text-center text-sm text-muted-foreground py-12">
+                    No reports available yet.
+                  </div>
+                )}
+                {otherReports?.map((report, i) => (
+                  <motion.div
+                    key={report.id}
+                    variants={motionVariants}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true }}
+                    className="flex items-center gap-4 p-4 bg-card border border-border rounded-xl hover:border-accent/40"
+                  >
+                    <div className="p-2 rounded-lg bg-red-500/10 text-red-600">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">
+                        {report.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        FY {report.academic_year}
+                      </p>
+                    </div>
+                    {report.file_url && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setActiveReportUrl(report.file_url)}
+                          className="text-xs font-bold text-accent hover:underline flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/10"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View
+                        </button>
+                        <a
+                          href={report.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-muted-foreground hover:underline flex items-center gap-1 px-2 py-1 rounded-md hover:bg-accent/10"
+                        >
+                          <Download className="w-3 h-3" />
+                          PDF
+                        </a>
+                      </div>
                     )}
                   </motion.div>
                 ))}
@@ -244,6 +359,8 @@ export default function EventsPage() {
                     src={activeEvent.banner_image_url}
                     alt={activeEvent.title}
                     className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground/40">
@@ -307,11 +424,50 @@ export default function EventsPage() {
                   <h3 className="text-sm font-semibold mb-2">
                     About the Event
                   </h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
-                    {activeEvent.description}
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                    {activeEvent.short_description ?? activeEvent.description}
                   </p>
                 </div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {activeReportUrl && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setActiveReportUrl(null)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-5xl h-[85vh] bg-background rounded-xl overflow-hidden shadow-xl"
+            >
+              <button
+                onClick={() => setActiveReportUrl(null)}
+                className="absolute top-4 right-4 z-10 text-muted-foreground hover:text-foreground"
+                aria-label="Close report viewer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {activeReportUrl && activeReportUrl.startsWith("http") && (
+                <iframe
+                  src={activeReportUrl}
+                  className="w-full h-full"
+                  loading="lazy"
+                  title="Report PDF"
+                />
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -366,7 +522,7 @@ function EventCard({
   muted,
   onClick,
 }: {
-  event: any;
+  event: EventRow;
   delay: number;
   variants: Variants;
   muted?: boolean;
@@ -385,7 +541,7 @@ function EventCard({
       transition={{ delay }}
       className={`group bg-card border border-border rounded-xl overflow-hidden ${
         muted ? "opacity-80" : ""
-      } hover:border-accent/40`}
+      } hover:shadow-md transition-shadow duration-200`}
     >
       <div className="relative h-36 bg-secondary overflow-hidden">
         {event.banner_image_url ? (
@@ -393,6 +549,8 @@ function EventCard({
             src={event.banner_image_url}
             alt={event.title}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground/30">
@@ -433,7 +591,7 @@ function EventCard({
         </div>
 
         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-          {event.description}
+          {event.short_description ?? event.description}
         </p>
       </div>
     </motion.article>
@@ -445,7 +603,7 @@ function EventCard({
 function EventsSkeleton() {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 3 }).map((_, i) => (
         <div
           key={i}
           className="bg-card border border-border rounded-xl overflow-hidden"

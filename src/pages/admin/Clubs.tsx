@@ -20,7 +20,7 @@ import {
   useDeleteClubJuniorMembers,
 } from "@/hooks/useClubMembers";
 import { useDeleteClubSeniorMembers } from "@/hooks/useClubMembers";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useClubs, useCreateClub, useUpdateClub } from "@/hooks/useClubs";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -55,7 +55,6 @@ import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 
 type EditableMember = {
-  id?: string;
   uid: string;
   name: string;
   designation: string;
@@ -66,6 +65,16 @@ const normalizeUrl = (value: string) => {
   if (!value) return "";
   if (value.startsWith("http://") || value.startsWith("https://")) return value;
   return `https://${value}`;
+};
+
+const getStoragePathFromUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split("/uploads/");
+    return parts[1] ?? null;
+  } catch {
+    return null;
+  }
 };
 
 const SortableSeniorRow = ({
@@ -102,7 +111,7 @@ const SortableSeniorRow = ({
           {...attributes}
           {...listeners}
           title="Drag to reorder"
-          className="cursor-grab text-muted-foreground text-xs select-none opacity-50 hover:opacity-100 transition-opacity"
+          className="cursor-grab active:cursor-grabbing text-muted-foreground text-xs select-none opacity-50 hover:opacity-100 transition-opacity"
           aria-label="Drag to reorder"
         >
           ⋮⋮
@@ -171,7 +180,7 @@ const AdminClubs = () => {
   const { data: clubs, isLoading } = useClubs({ type: segment });
   const createClub = useCreateClub();
   const updateClub = useUpdateClub();
-  const { uploadFile, uploading } = useFileUpload();
+  const { uploadFile, deleteFile, uploading } = useFileUpload();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClub, setEditingClub] = useState<any | null>(null);
@@ -191,119 +200,6 @@ const AdminClubs = () => {
   const [activeClubForMembers, setActiveClubForMembers] = useState<any | null>(
     null,
   );
-
-  const [seniorMembers, setSeniorMembers] = useState<EditableMember[]>([]);
-
-  const [juniorMembers, setJuniorMembers] = useState<EditableMember[]>([]);
-
-  const [membersDirty, setMembersDirty] = useState(false);
-
-  // UID generator for stable drag-and-drop identity
-  const createUID = () => crypto.randomUUID();
-
-  // DnD sensors for senior members
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const { data: seniorMembersData } = useClubMembers(
-    activeClubForMembers?.id,
-    "senior",
-  );
-
-  const { data: juniorMembersData } = useClubMembers(
-    activeClubForMembers?.id,
-    "junior",
-  );
-
-  const bulkInsertMembers = useBulkInsertClubMembers();
-
-  const deleteSeniorMembers = useDeleteClubSeniorMembers();
-  const deleteJuniorMembers = useDeleteClubJuniorMembers();
-
-  // Sync query data to local state
-
-  useEffect(() => {
-    if (!seniorMembersData) return;
-
-    setSeniorMembers(
-      seniorMembersData.map((m) => ({
-        id: m.id,
-        uid: createUID(),
-        name: m.name,
-        designation: m.designation,
-        phone: m.phone,
-      })),
-    );
-    setMembersDirty(false);
-  }, [seniorMembersData]);
-
-  useEffect(() => {
-    if (!juniorMembersData) return;
-
-    setJuniorMembers(
-      juniorMembersData.map((m) => ({
-        id: m.id,
-        uid: createUID(),
-        name: m.name,
-        designation: m.designation,
-        phone: m.phone,
-      })),
-    );
-  }, [juniorMembersData]);
-
-  const handleSeniorExcelImport = async (file: File) => {
-    try {
-      const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(buffer);
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any>(sheet);
-      if (!activeClubForMembers) {
-        toast.error("No club selected");
-        return;
-      }
-      const valid = rows
-        .filter((r) => r.name && r.designation)
-        .map((r) => ({
-          name: String(r.name),
-          designation: String(r.designation),
-          phone: r.phone ? String(r.phone) : null,
-          role: "senior",
-        }));
-
-      if (!valid.length) {
-        toast.error("No valid rows found");
-        return;
-      }
-      await deleteSeniorMembers.mutateAsync(activeClubForMembers.id);
-
-      await bulkInsertMembers.mutateAsync({
-        club_id: activeClubForMembers.id,
-        members: valid.map((m) => ({
-          name: m.name,
-          designation: m.designation,
-          phone: m.phone,
-          role: "senior",
-        })),
-      });
-
-      setMembersDirty(true);
-      setSeniorMembers(
-        valid.map((m) => ({
-          uid: createUID(),
-          name: m.name,
-          designation: m.designation,
-          phone: m.phone,
-        })),
-      );
-      toast.success("Senior members imported");
-    } catch (err) {
-      toast.error("Excel import failed");
-    }
-  };
 
   const resetForm = () => {
     setFormData({
@@ -512,11 +408,30 @@ const AdminClubs = () => {
                   <Label>Club Logo</Label>
                   <div className="flex items-center gap-4">
                     {formData.logo_url && (
-                      <img
-                        src={formData.logo_url}
-                        alt={`${formData.name} logo`}
-                        className="h-16 w-16 rounded-md object-cover"
-                      />
+                      <div className="relative">
+                        <img
+                          src={formData.logo_url}
+                          alt={`${formData.name} logo`}
+                          className="h-16 w-16 rounded-md object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const path = getStoragePathFromUrl(
+                              formData.logo_url,
+                            );
+                            if (path) {
+                              await deleteFile(path);
+                            }
+                            setFormData((p) => ({ ...p, logo_url: "" }));
+                            toast.success("Logo removed");
+                          }}
+                          className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 hover:opacity-90 transition"
+                          aria-label="Remove logo"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     )}
                     <label className="cursor-pointer">
                       <div className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-muted">
@@ -534,6 +449,15 @@ const AdminClubs = () => {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
+                          // Delete the old logo before uploading new one
+                          if (formData.logo_url) {
+                            const oldPath = getStoragePathFromUrl(
+                              formData.logo_url,
+                            );
+                            if (oldPath) {
+                              await deleteFile(oldPath);
+                            }
+                          }
                           const res = await uploadFile(file, "club-logos");
                           if (res) {
                             setFormData((p) => ({ ...p, logo_url: res.url }));
@@ -647,7 +571,9 @@ const AdminClubs = () => {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <p className="text-sm line-clamp-2">{club.description}</p>
+                    <p className="text-sm whitespace-pre-line break-words line-clamp-2">
+                      {club.description}
+                    </p>
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 text-muted-foreground">
@@ -722,317 +648,25 @@ const AdminClubs = () => {
       <Dialog
         open={membersDialogOpen}
         onOpenChange={(open) => {
-          if (!open && membersDirty) {
-            const confirmClose = window.confirm(
-              "Discard unsaved member changes?",
-            );
-            if (!confirmClose) return;
-          }
-
-          setMembersDialogOpen(open);
+          // The close logic (confirm unsaved) is handled in ClubMembersSection
           if (!open) {
-            setMembersDirty(false);
+            setMembersDialogOpen(false);
             setActiveClubForMembers(null);
-            setSeniorMembers([]);
-            setJuniorMembers([]);
+          } else {
+            setMembersDialogOpen(true);
           }
         }}
       >
         <DialogContent className="max-w-2xl h-[85vh] p-0 flex flex-col rounded-lg">
-          <DialogHeader className="px-6 pt-6">
-            <DialogTitle className="text-lg font-semibold">
-              Manage Members – {activeClubForMembers?.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 space-y-6">
-            {/* SENIOR MEMBERS */}
-            <div className="space-y-2 pb-4 border-b">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h3 className="text-sm font-semibold">Senior Members</h3>
-                <p className="text-xs text-muted-foreground">
-                  Add senior leadership details (displayed publicly)
-                </p>
-                {/* Excel actions */}
-                <div className="flex items-center gap-2 ml-auto">
-                  {/* Download template – secondary accent */}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-dashed text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      const ws = XLSX.utils.json_to_sheet([
-                        { name: "", designation: "", phone: "" },
-                      ]);
-                      const wb = XLSX.utils.book_new();
-                      XLSX.utils.book_append_sheet(wb, ws, "Senior Members");
-                      XLSX.writeFile(wb, "club_senior_members_template.xlsx");
-                    }}
-                  >
-                    Download Template
-                  </Button>
-                  {/* Import – primary action */}
-                  <label className="inline-block">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border bg-muted/40 hover:bg-muted transition-colors cursor-pointer text-sm">
-                      <Upload className="h-4 w-4 text-muted-foreground" />
-                      <span>Import from Excel</span>
-                    </div>
-                    <input
-                      type="file"
-                      accept=".xls,.xlsx"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleSeniorExcelImport(file);
-                      }}
-                    />
-                  </label>
-                </div>
-              </div>
-
-              {seniorMembers.length === 0 && (
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  No senior members added yet.
-                </div>
-              )}
-
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={({ active, over }) => {
-                  if (!over || active.id === over.id) return;
-
-                  setMembersDirty(true);
-                  setSeniorMembers((items) => {
-                    const oldIndex = items.findIndex(
-                      (m) => m.uid === active.id,
-                    );
-                    const newIndex = items.findIndex((m) => m.uid === over.id);
-
-                    if (oldIndex === -1 || newIndex === -1) return items;
-
-                    const updated = [...items];
-                    const [moved] = updated.splice(oldIndex, 1);
-                    updated.splice(newIndex, 0, moved);
-                    return updated;
-                  });
-                  // No persistence to DB needed, UI only
-                }}
-              >
-                <SortableContext
-                  items={seniorMembers.map((m) => m.uid)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {seniorMembers.map((member, idx) => (
-                    <div key={member.uid} className="space-y-1">
-                      <SortableSeniorRow
-                        member={member}
-                        index={idx}
-                        onChange={(i, key, value) => {
-                          setMembersDirty(true);
-                          setSeniorMembers((prev) => {
-                            const copy = [...prev];
-                            (copy[i] as any)[key] = value;
-                            return copy;
-                          });
-                        }}
-                        onRemove={(i) => {
-                          setMembersDirty(true);
-                          setSeniorMembers((prev) =>
-                            prev.filter((_, idx2) => idx2 !== i),
-                          );
-                        }}
-                        onMoveDown={() => {
-                          setMembersDirty(true);
-                          setSeniorMembers((prev) =>
-                            prev.filter((m) => m.uid !== member.uid),
-                          );
-                          setJuniorMembers((prev) => [...prev, member]);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </SortableContext>
-              </DndContext>
-
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setMembersDirty(true);
-                  setSeniorMembers((p) => [
-                    ...p,
-                    {
-                      uid: createUID(),
-                      name: "",
-                      designation: "",
-                      phone: null,
-                    },
-                  ]);
-                }}
-              >
-                + Add Senior Member
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Junior Members</h3>
-                <p className="text-xs text-muted-foreground">
-                  Add junior member details.
-                </p>
-
-                {juniorMembers.length === 0 && (
-                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                    No junior members added yet.
-                  </div>
-                )}
-
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={({ active, over }) => {
-                    if (!over || active.id === over.id) return;
-
-                    setMembersDirty(true);
-                    setJuniorMembers((items) => {
-                      const oldIndex = items.findIndex(
-                        (m) => m.uid === active.id,
-                      );
-                      const newIndex = items.findIndex(
-                        (m) => m.uid === over.id,
-                      );
-
-                      if (oldIndex === -1 || newIndex === -1) return items;
-
-                      const updated = [...items];
-                      const [moved] = updated.splice(oldIndex, 1);
-                      updated.splice(newIndex, 0, moved);
-                      return updated;
-                    });
-                  }}
-                >
-                  <SortableContext
-                    items={juniorMembers.map((m) => m.uid)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {juniorMembers.map((member, idx) => (
-                      <div key={member.uid} className="space-y-1">
-                        <SortableSeniorRow
-                          member={member}
-                          index={idx}
-                          onChange={(i, key, value) => {
-                            setMembersDirty(true);
-                            setJuniorMembers((prev) => {
-                              const copy = [...prev];
-                              (copy[i] as any)[key] = value;
-                              return copy;
-                            });
-                          }}
-                          onRemove={(i) => {
-                            setMembersDirty(true);
-                            setJuniorMembers((prev) =>
-                              prev.filter((_, index) => index !== i),
-                            );
-                          }}
-                          onMoveUp={() => {
-                            setMembersDirty(true);
-                            setJuniorMembers((prev) =>
-                              prev.filter((m) => m.uid !== member.uid),
-                            );
-                            setSeniorMembers((prev) => [...prev, member]);
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </SortableContext>
-                </DndContext>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setMembersDirty(true);
-                    setJuniorMembers((p) => [
-                      ...p,
-                      {
-                        uid: createUID(),
-                        name: "",
-                        designation: "",
-                        phone: null,
-                      },
-                    ]);
-                  }}
-                >
-                  + Add Junior Member
-                </Button>
-              </div>
-            </div>
-          </div>
-          <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 rounded-b-md">
-            <div className="flex justify-end gap-3 px-6 py-4">
-              <Button
-                variant="outline"
-                onClick={() => setMembersDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!activeClubForMembers) return;
-
-                  try {
-                    // Always replace senior members to avoid duplicate unique constraint
-                    await deleteSeniorMembers.mutateAsync(
-                      activeClubForMembers.id,
-                    );
-                    await deleteJuniorMembers.mutateAsync(
-                      activeClubForMembers.id,
-                    );
-
-                    await bulkInsertMembers.mutateAsync({
-                      club_id: activeClubForMembers.id,
-                      members: seniorMembers
-                        .filter((m) => m.name && m.designation)
-                        .map((m) => ({
-                          name: m.name,
-                          designation: m.designation,
-                          phone: m.phone,
-                          role: "senior",
-                        })),
-                    });
-
-                    await bulkInsertMembers.mutateAsync({
-                      club_id: activeClubForMembers.id,
-                      members: juniorMembers
-                        .filter((m) => m.name && m.designation)
-                        .map((m) => ({
-                          name: m.name,
-                          designation: m.designation,
-                          phone: m.phone,
-                          role: "junior",
-                        })),
-                    });
-
-                    await updateClub.mutateAsync({
-                      id: activeClubForMembers.id,
-                      senior_count: seniorMembers.length,
-                      junior_count: juniorMembers.length,
-                    });
-
-                    toast.success("Members updated");
-                    setMembersDirty(false);
-                    setMembersDialogOpen(false);
-                  } catch {
-                    toast.error("Failed to save members");
-                  }
-                }}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
+          {activeClubForMembers && (
+            <ClubMembersSection
+              club={activeClubForMembers}
+              onClose={() => {
+                setMembersDialogOpen(false);
+                setActiveClubForMembers(null);
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </AdminLayout>
@@ -1040,3 +674,430 @@ const AdminClubs = () => {
 };
 
 export default AdminClubs;
+
+// ClubMembersSection: extracted from Club dialog, structurally matches Committees
+function ClubMembersSection({
+  club,
+  onClose,
+}: {
+  club: any;
+  onClose: () => void;
+}) {
+  // UID generator for stable drag-and-drop identity
+  const createUID = () => crypto.randomUUID();
+
+  const [seniorMembers, setSeniorMembers] = useState<EditableMember[]>([]);
+  const [juniorMembers, setJuniorMembers] = useState<EditableMember[]>([]);
+  const [membersDirty, setMembersDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const { data: seniorMembersData } = useClubMembers(club?.id, "senior");
+  const { data: juniorMembersData } = useClubMembers(club?.id, "junior");
+  const bulkInsertMembers = useBulkInsertClubMembers();
+  const deleteSeniorMembers = useDeleteClubSeniorMembers();
+  const deleteJuniorMembers = useDeleteClubJuniorMembers();
+  const updateClub = useUpdateClub();
+
+  useEffect(() => {
+    if (!seniorMembersData) return;
+    setSeniorMembers(
+      seniorMembersData.map((m: any) => ({
+        uid: createUID(),
+        name: m.name,
+        designation: m.designation,
+        phone: m.phone,
+      })),
+    );
+    setMembersDirty(false);
+  }, [seniorMembersData]);
+
+  useEffect(() => {
+    if (!juniorMembersData) return;
+    setJuniorMembers(
+      juniorMembersData.map((m: any) => ({
+        uid: createUID(),
+        name: m.name,
+        designation: m.designation,
+        phone: m.phone,
+      })),
+    );
+  }, [juniorMembersData]);
+
+  // Excel import handler for both senior and junior members using single import button and role column
+  const handleExcelImport = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer);
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any>(sheet);
+
+      if (!rows.length) {
+        toast.error("Excel file is empty");
+        return;
+      }
+
+      if (!club) {
+        toast.error("No club selected");
+        return;
+      }
+      // Normalize and validate rows
+      const seniorRows: any[] = [];
+      const juniorRows: any[] = [];
+      for (const r of rows) {
+        if (!r.name || !r.designation || !r.role) continue;
+        const roleVal = String(r.role).toLowerCase().trim();
+        if (roleVal === "senior") {
+          seniorRows.push({
+            name: String(r.name),
+            designation: String(r.designation),
+            phone: r.phone ? String(r.phone) : null,
+            role: "senior",
+          });
+        } else if (roleVal === "junior") {
+          juniorRows.push({
+            name: String(r.name),
+            designation: String(r.designation),
+            phone: r.phone ? String(r.phone) : null,
+            role: "junior",
+          });
+        }
+      }
+      if (!seniorRows.length && !juniorRows.length) {
+        toast.error(
+          "No valid rows found (must have name, designation, and role of 'senior' or 'junior')",
+        );
+        return;
+      }
+      // Delete both senior and junior members first
+      await deleteSeniorMembers.mutateAsync(club.id);
+      await deleteJuniorMembers.mutateAsync(club.id);
+      // Bulk insert seniors
+      if (seniorRows.length) {
+        await bulkInsertMembers.mutateAsync({
+          club_id: club.id,
+          members: seniorRows,
+        });
+      }
+      // Bulk insert juniors
+      if (juniorRows.length) {
+        await bulkInsertMembers.mutateAsync({
+          club_id: club.id,
+          members: juniorRows,
+        });
+      }
+      setSeniorMembers(
+        seniorRows.map((m) => ({
+          uid: createUID(),
+          name: m.name,
+          designation: m.designation,
+          phone: m.phone,
+        })),
+      );
+      setJuniorMembers(
+        juniorRows.map((m) => ({
+          uid: createUID(),
+          name: m.name,
+          designation: m.designation,
+          phone: m.phone,
+        })),
+      );
+      setMembersDirty(true);
+      toast.success("Members imported from Excel");
+    } catch {
+      toast.error("Excel import failed");
+    }
+  };
+
+  // Confirm unsaved changes on close
+  const handleClose = () => {
+    if (membersDirty) {
+      if (!window.confirm("Discard unsaved member changes?")) return;
+    }
+    onClose();
+  };
+
+  // Save handler: replace-all logic
+  const handleSave = async () => {
+    if (!club || saving) return;
+
+    try {
+      setSaving(true);
+
+      await deleteSeniorMembers.mutateAsync(club.id);
+      await deleteJuniorMembers.mutateAsync(club.id);
+
+      await bulkInsertMembers.mutateAsync({
+        club_id: club.id,
+        members: seniorMembers
+          .filter((m) => m.name && m.designation)
+          .map((m) => ({
+            name: m.name,
+            designation: m.designation,
+            phone: m.phone,
+            role: "senior",
+          })),
+      });
+
+      await bulkInsertMembers.mutateAsync({
+        club_id: club.id,
+        members: juniorMembers
+          .filter((m) => m.name && m.designation)
+          .map((m) => ({
+            name: m.name,
+            designation: m.designation,
+            phone: m.phone,
+            role: "junior",
+          })),
+      });
+
+      await updateClub.mutateAsync({
+        id: club.id,
+        senior_count: seniorMembers.length,
+        junior_count: juniorMembers.length,
+      });
+
+      toast.success("Members updated");
+      setMembersDirty(false);
+      onClose();
+    } catch {
+      toast.error("Failed to save members");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <DialogHeader className="px-6 pt-6">
+        <DialogTitle className="text-lg font-semibold">
+          Manage Members – {club?.name}
+        </DialogTitle>
+      </DialogHeader>
+      <div className="flex-1 overflow-y-auto px-6 space-y-6">
+        {/* Header actions: single Excel import and template download */}
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-dashed text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              const ws = XLSX.utils.json_to_sheet([
+                { name: "", designation: "", phone: "", role: "senior" },
+                { name: "", designation: "", phone: "", role: "junior" },
+              ]);
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, "Members");
+              XLSX.writeFile(wb, "club_members_template.xlsx");
+            }}
+          >
+            Download Template
+          </Button>
+          <label className="inline-block">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border bg-muted/40 hover:bg-muted transition-colors cursor-pointer text-sm">
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              <span>Import Members (Excel)</span>
+            </div>
+            <input
+              type="file"
+              accept=".xls,.xlsx"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleExcelImport(file);
+              }}
+            />
+          </label>
+        </div>
+        {/* SENIOR MEMBERS */}
+        <div className="space-y-2 pb-4 border-b">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h3 className="text-sm font-semibold">Senior Members</h3>
+            <p className="text-xs text-muted-foreground">
+              Add senior leadership details (displayed publicly)
+            </p>
+          </div>
+          {seniorMembers.length === 0 && (
+            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              No senior members added yet.
+            </div>
+          )}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return;
+              setMembersDirty(true);
+              setSeniorMembers((items) => {
+                const oldIndex = items.findIndex((m) => m.uid === active.id);
+                const newIndex = items.findIndex((m) => m.uid === over.id);
+                if (oldIndex === -1 || newIndex === -1) return items;
+                const updated = [...items];
+                const [moved] = updated.splice(oldIndex, 1);
+                updated.splice(newIndex, 0, moved);
+                return updated;
+              });
+            }}
+          >
+            <SortableContext
+              items={seniorMembers.map((m) => m.uid)}
+              strategy={verticalListSortingStrategy}
+            >
+              {seniorMembers.map((member, idx) => (
+                <div key={member.uid} className="space-y-1">
+                  <SortableSeniorRow
+                    member={member}
+                    index={idx}
+                    onChange={(i, key, value) => {
+                      setMembersDirty(true);
+                      setSeniorMembers((prev) => {
+                        const copy = [...prev];
+                        copy[i] = { ...copy[i], [key]: value };
+                        return copy;
+                      });
+                    }}
+                    onRemove={(i) => {
+                      setMembersDirty(true);
+                      setSeniorMembers((prev) =>
+                        prev.filter((_, idx2) => idx2 !== i),
+                      );
+                    }}
+                    onMoveDown={() => {
+                      setMembersDirty(true);
+                      setSeniorMembers((prev) =>
+                        prev.filter((m) => m.uid !== member.uid),
+                      );
+                      setJuniorMembers((prev) => [...prev, member]);
+                    }}
+                  />
+                </div>
+              ))}
+            </SortableContext>
+          </DndContext>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setMembersDirty(true);
+              setSeniorMembers((p) => [
+                ...p,
+                {
+                  uid: createUID(),
+                  name: "",
+                  designation: "",
+                  phone: null,
+                },
+              ]);
+            }}
+          >
+            + Add Senior Member
+          </Button>
+        </div>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h3 className="text-sm font-semibold">Junior Members</h3>
+              <p className="text-xs text-muted-foreground">
+                Add junior member details.
+              </p>
+            </div>
+            {juniorMembers.length === 0 && (
+              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                No junior members added yet.
+              </div>
+            )}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={({ active, over }) => {
+                if (!over || active.id === over.id) return;
+                setMembersDirty(true);
+                setJuniorMembers((items) => {
+                  const oldIndex = items.findIndex((m) => m.uid === active.id);
+                  const newIndex = items.findIndex((m) => m.uid === over.id);
+                  if (oldIndex === -1 || newIndex === -1) return items;
+                  const updated = [...items];
+                  const [moved] = updated.splice(oldIndex, 1);
+                  updated.splice(newIndex, 0, moved);
+                  return updated;
+                });
+              }}
+            >
+              <SortableContext
+                items={juniorMembers.map((m) => m.uid)}
+                strategy={verticalListSortingStrategy}
+              >
+                {juniorMembers.map((member, idx) => (
+                  <div key={member.uid} className="space-y-1">
+                    <SortableSeniorRow
+                      member={member}
+                      index={idx}
+                      onChange={(i, key, value) => {
+                        setMembersDirty(true);
+                        setJuniorMembers((prev) => {
+                          const copy = [...prev];
+                          copy[i] = { ...copy[i], [key]: value };
+                          return copy;
+                        });
+                      }}
+                      onRemove={(i) => {
+                        setMembersDirty(true);
+                        setJuniorMembers((prev) =>
+                          prev.filter((_, index) => index !== i),
+                        );
+                      }}
+                      onMoveUp={() => {
+                        setMembersDirty(true);
+                        setJuniorMembers((prev) =>
+                          prev.filter((m) => m.uid !== member.uid),
+                        );
+                        setSeniorMembers((prev) => [...prev, member]);
+                      }}
+                    />
+                  </div>
+                ))}
+              </SortableContext>
+            </DndContext>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setMembersDirty(true);
+                setJuniorMembers((p) => [
+                  ...p,
+                  {
+                    uid: createUID(),
+                    name: "",
+                    designation: "",
+                    phone: null,
+                  },
+                ]);
+              }}
+            >
+              + Add Junior Member
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 rounded-b-md">
+        <div className="flex justify-end gap-3 px-6 py-4">
+          <Button variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Save
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}

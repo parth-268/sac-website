@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   Settings,
@@ -45,35 +45,56 @@ export const Footer = () => {
   const sacLogoUrl = getVal("sac_logo_url", "");
   const collegeLogoUrl = getVal("college_logo_url", "");
 
-  const socialLinks = [
-    {
-      icon: Instagram,
-      href: getVal("social_instagram", ""),
-      label: "Instagram",
-    },
-    { icon: Linkedin, href: getVal("social_linkedin", ""), label: "LinkedIn" },
-    { icon: Twitter, href: getVal("social_twitter", ""), label: "Twitter" },
-    { icon: Facebook, href: getVal("social_facebook", ""), label: "Facebook" },
-  ];
+  const socialLinks = useMemo(
+    () => [
+      {
+        icon: Instagram,
+        href: getVal("social_instagram", ""),
+        label: "Instagram",
+      },
+      {
+        icon: Linkedin,
+        href: getVal("social_linkedin", ""),
+        label: "LinkedIn",
+      },
+      { icon: Twitter, href: getVal("social_twitter", ""), label: "Twitter" },
+      {
+        icon: Facebook,
+        href: getVal("social_facebook", ""),
+        label: "Facebook",
+      },
+    ],
+    [getVal],
+  );
 
-  const quickLinks = [
-    { label: "About SAC", to: "/#about" },
-    { label: "Leadership Team", to: "/#team" },
-    { label: "Events Calendar", to: "/#events" },
-    { label: "Contact Us", to: "/#contact" },
-  ];
+  const quickLinks = useMemo(
+    () => [
+      { label: "About SAC", to: "/#about" },
+      { label: "Leadership Team", to: "/#team" },
+      { label: "Events Calendar", to: "/#events" },
+      { label: "Contact Us", to: "/#contact" },
+    ],
+    [],
+  );
 
-  const resourceLinks = [
-    { label: "Clubs & Committees", to: "/clubs" },
-    { label: "Photo Gallery", to: "/gallery" },
-    { label: "News & Updates", to: "/news" },
-    { label: "Student Portal", to: "/login" },
-  ];
+  const resourceLinks = useMemo(
+    () => [
+      { label: "Clubs & Committees", to: "/clubs" },
+      { label: "Photo Gallery", to: "/gallery" },
+      { label: "News & Updates", to: "/news" },
+      { label: "Student Portal", to: "/login" },
+    ],
+    [],
+  );
 
   return (
-    <footer className="bg-[#0a0f1d] pt-8 pb-6 relative overflow-hidden">
+    <footer
+      role="contentinfo"
+      className="bg-[#0a0f1d] pt-8 pb-6 relative overflow-hidden"
+    >
       {/* Watermark */}
       <div
+        aria-hidden="true"
         className="absolute -bottom-6 -right-6 md:-right-10 text-[12rem] md:text-[24rem] font-black font-heading leading-none text-transparent pointer-events-none select-none z-0"
         style={{ WebkitTextStroke: "1px rgba(255, 255, 255, 0.08)" }}
       >
@@ -109,6 +130,8 @@ export const Footer = () => {
                     <img
                       src={collegeLogoUrl}
                       alt="IIM Sambalpur"
+                      loading="lazy"
+                      decoding="async"
                       className="h-12 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
                     />
                   )}
@@ -123,6 +146,8 @@ export const Footer = () => {
                     <img
                       src={sacLogoUrl}
                       alt="SAC Logo"
+                      loading="lazy"
+                      decoding="async"
                       className="h-10 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
                     />
                   )}
@@ -149,23 +174,29 @@ export const Footer = () => {
             </div>
 
             <div className="flex gap-1 pt-1">
-              {socialLinks.map((social, i) => (
-                <a
-                  key={i}
-                  href={social.href || undefined}
-                  target={social.href ? "_blank" : undefined}
-                  rel={social.href ? "noopener noreferrer nofollow" : undefined}
-                  aria-label={social.label}
-                  aria-disabled={!social.href}
-                  className={
-                    social.href
-                      ? "w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 will-change-transform hover:scale-[1.06] focus-visible:ring-1 focus-visible:ring-accent/40"
-                      : "w-8 h-8 rounded-md flex items-center justify-center text-slate-700 cursor-not-allowed opacity-40"
-                  }
-                >
-                  <social.icon className="w-4 h-4" />
-                </a>
-              ))}
+              {socialLinks.map((social, i) =>
+                social.href ? (
+                  <a
+                    key={i}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    aria-label={social.label}
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all duration-300 will-change-transform hover:scale-[1.06] focus-visible:ring-1 focus-visible:ring-accent/40"
+                  >
+                    <social.icon className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <span
+                    key={i}
+                    aria-label={social.label}
+                    aria-disabled="true"
+                    className="w-8 h-8 rounded-md flex items-center justify-center text-slate-700 cursor-not-allowed opacity-40"
+                  >
+                    <social.icon className="w-4 h-4" />
+                  </span>
+                ),
+              )}
             </div>
           </div>
 
@@ -230,6 +261,7 @@ export const Footer = () => {
             {user && isEditor ? (
               <Link
                 to="/admin"
+                aria-label="Admin Panel"
                 className="text-accent hover:text-white flex items-center gap-1 transition-colors font-medium"
               >
                 <Settings className="w-3 h-3" /> Admin
@@ -237,6 +269,7 @@ export const Footer = () => {
             ) : (
               <Link
                 to="/login"
+                aria-label="Login"
                 className="hover:text-white flex items-center gap-1 transition-colors opacity-40 hover:opacity-100"
               >
                 <Settings className="w-3 h-3" /> Login

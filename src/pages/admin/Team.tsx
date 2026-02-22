@@ -79,7 +79,7 @@ const initialForm = {
   linkedin_url: "",
   email: "",
   phone: "",
-  academic_batch: "",
+  batch_year: "",
   display_order: 0,
   is_active: true,
 };
@@ -122,15 +122,17 @@ export default function AdminTeam() {
     if (!members) return [];
 
     return [...members].sort((a, b) => {
-      // 1. Sort by Academic Batch (Ascending: Seniors/Older Batches First)
-      // Assuming batch format is Year (e.g., 2023). 2023 < 2024.
-      // If batch is missing, treat as highest number (Junior-most).
-      const batchA = a.academic_batch
-        ? parseInt(String(a.academic_batch))
-        : 9999;
-      const batchB = b.academic_batch
-        ? parseInt(String(b.academic_batch))
-        : 9999;
+      // 1. Sort by Batch Year (Ascending: Seniors/Older Batches First)
+      // Hardened parsing for batch_year, treat empty string as 9999
+      const batchA =
+        a.batch_year && !isNaN(Number(a.batch_year))
+          ? Number(a.batch_year)
+          : 9999;
+
+      const batchB =
+        b.batch_year && !isNaN(Number(b.batch_year))
+          ? Number(b.batch_year)
+          : 9999;
 
       if (batchA !== batchB) {
         return batchA - batchB;
@@ -161,18 +163,20 @@ export default function AdminTeam() {
   };
 
   const toggleSelection = (id: string) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
-    setSelectedIds(newSet);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const selectAll = () => {
-    if (members) {
-      setSelectedIds(new Set(members.map((m) => m.id)));
+    if (sortedMembers.length > 0) {
+      setSelectedIds(new Set(sortedMembers.map((m) => m.id)));
     }
   };
 
@@ -267,7 +271,7 @@ export default function AdminTeam() {
             linkedin_url: row["LinkedIn URL"]
               ? String(row["LinkedIn URL"]).trim()
               : "",
-            academic_batch: row["Academic Batch"]
+            batch_year: row["Academic Batch"]
               ? String(row["Academic Batch"]).trim()
               : "",
             image_url: "",
@@ -276,9 +280,17 @@ export default function AdminTeam() {
           });
         });
 
-        await Promise.all(promises);
-
-        toast.success(`Successfully imported ${validRows.length} members!`);
+        const results = await Promise.allSettled(promises);
+        const success = results.filter((r) => r.status === "fulfilled").length;
+        const failed = results.length - success;
+        if (success > 0) {
+          toast.success(
+            `Imported ${success} members${failed ? `, ${failed} failed.` : "!"}`,
+          );
+        }
+        if (failed > 0 && success === 0) {
+          toast.error("All rows failed to import. Please verify the file.");
+        }
       } catch (err) {
         console.error("Excel Import Error:", err);
         toast.error("Failed to parse Excel file. Please check the format.");
@@ -293,6 +305,10 @@ export default function AdminTeam() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name.trim()) {
+      toast.error("Name cannot be empty");
+      return;
+    }
 
     // 1. Check Duplicates
     if (isDuplicate(formData.name, formData.email, editingId || undefined)) {
@@ -309,14 +325,14 @@ export default function AdminTeam() {
           (m) =>
             m.is_active &&
             m.id !== editingId &&
-            m.academic_batch &&
-            !isNaN(parseInt(String(m.academic_batch))),
+            m.batch_year &&
+            !isNaN(parseInt(String(m.batch_year))),
         )
-        .map((m) => parseInt(String(m.academic_batch)));
+        .map((m) => parseInt(String(m.batch_year)));
 
       if (activeBatches.length > 0) {
         const seniorMostBatch = Math.min(...activeBatches);
-        const currentBatch = parseInt(formData.academic_batch);
+        const currentBatch = parseInt(formData.batch_year);
 
         // If trying to add a batch Junior to the senior-most existing batch
         if (
@@ -360,26 +376,24 @@ export default function AdminTeam() {
     )
       return;
 
-    let count = 0;
     const ids = Array.from(selectedIds);
 
-    await Promise.all(
+    const results = await Promise.allSettled(
       ids.map(async (id) => {
         const member = members?.find((m) => m.id === id);
-        if (member) {
-          await performDelete(member);
-          count++;
-        }
+        if (member) await performDelete(member);
       }),
     );
-
-    toast.success(`Deleted ${count} members.`);
+    const success = results.filter((r) => r.status === "fulfilled").length;
+    toast.success(`Deleted ${success} members.`);
     setSelectedIds(new Set());
   };
 
   // Unified Archive Handler (Single & Bulk)
   const handleArchive = async () => {
-    if (!archiveBatch) return toast.error("Please enter a Batch Year");
+    if (!archiveBatch || isNaN(Number(archiveBatch))) {
+      return toast.error("Please enter a valid numeric Batch Year");
+    }
 
     // Determine targets: Single Selected or Bulk Set
     const targets = selectedMember
@@ -395,22 +409,16 @@ export default function AdminTeam() {
     )
       return;
 
-    let successCount = 0;
-
-    await Promise.all(
+    const results = await Promise.allSettled(
       targets.map(async (member) => {
-        try {
-          if (member.email) await revokeAdmin.mutateAsync(member.email);
-          await moveToAlumni.mutateAsync({
-            id: member.id,
-            batch_year: archiveBatch,
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`Failed to archive ${member.name}`, error);
-        }
+        if (member.email) await revokeAdmin.mutateAsync(member.email);
+        await moveToAlumni.mutateAsync({
+          id: member.id,
+          batch_year: archiveBatch,
+        });
       }),
     );
+    const successCount = results.filter((r) => r.status === "fulfilled").length;
 
     setIsArchiveOpen(false);
     setSelectedMember(null);
@@ -505,7 +513,7 @@ export default function AdminTeam() {
       linkedin_url: m.linkedin_url || "",
       email: m.email || "",
       phone: m.phone || "",
-      academic_batch: m.academic_batch ? String(m.academic_batch) : "",
+      batch_year: m.batch_year ? String(m.batch_year) : "",
       display_order: m.display_order,
       is_active: m.is_active,
     });
@@ -534,6 +542,17 @@ export default function AdminTeam() {
         <Loader2 className="animate-spin mx-auto mt-10" />
       </AdminLayout>
     );
+
+  // --- Empty State ---
+  if (sortedMembers.length === 0) {
+    return (
+      <AdminLayout title="Team Management">
+        <div className="text-center text-slate-500 mt-20">
+          No team members found. Add your first member to get started.
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout
@@ -639,12 +658,15 @@ export default function AdminTeam() {
           >
             {/* Selection Checkbox Overlay */}
             <div className="absolute top-3 left-3 z-10">
-              <input
-                type="checkbox"
-                checked={selectedIds.has(member.id)}
-                onChange={() => toggleSelection(member.id)}
-                className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
-              />
+              <label className="cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(member.id)}
+                  onChange={() => toggleSelection(member.id)}
+                  className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                  aria-label={`Select ${member.name}`}
+                />
+              </label>
             </div>
 
             <CardContent className="p-5 pl-10">
@@ -696,24 +718,56 @@ export default function AdminTeam() {
                   </div>
 
                   <div className="flex items-center gap-3 mt-3">
-                    <div
-                      className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.email ? "text-slate-600 hover:border-slate-300 hover:bg-white" : "text-slate-300 cursor-not-allowed"}`}
-                      title={member.email || "No Email"}
+                    <a
+                      href={member.email ? `mailto:${member.email}` : "#"}
+                      tabIndex={member.email ? 0 : -1}
+                      aria-disabled={!member.email}
+                      className="focus:outline-none"
+                      onClick={(e) => {
+                        if (!member.email) e.preventDefault();
+                      }}
                     >
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <div
-                      className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.phone ? "text-slate-600 hover:border-slate-300 hover:bg-white" : "text-slate-300 cursor-not-allowed"}`}
-                      title={member.phone || "No Phone"}
+                      <div
+                        className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.email ? "text-slate-600 hover:border-slate-300 hover:bg-white" : "text-slate-300 cursor-not-allowed"}`}
+                        title={member.email || "No Email"}
+                      >
+                        <Mail className="w-4 h-4" />
+                      </div>
+                    </a>
+                    <a
+                      href={member.phone ? `tel:${member.phone}` : "#"}
+                      tabIndex={member.phone ? 0 : -1}
+                      aria-disabled={!member.phone}
+                      className="focus:outline-none"
+                      onClick={(e) => {
+                        if (!member.phone) e.preventDefault();
+                      }}
                     >
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <div
-                      className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.linkedin_url ? "text-blue-600 hover:border-blue-300 hover:bg-blue-50" : "text-slate-300 cursor-not-allowed"}`}
-                      title={member.linkedin_url || "No LinkedIn"}
+                      <div
+                        className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.phone ? "text-slate-600 hover:border-slate-300 hover:bg-white" : "text-slate-300 cursor-not-allowed"}`}
+                        title={member.phone || "No Phone"}
+                      >
+                        <Phone className="w-4 h-4" />
+                      </div>
+                    </a>
+                    <a
+                      href={member.linkedin_url ? member.linkedin_url : "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      tabIndex={member.linkedin_url ? 0 : -1}
+                      aria-disabled={!member.linkedin_url}
+                      className="focus:outline-none"
+                      onClick={(e) => {
+                        if (!member.linkedin_url) e.preventDefault();
+                      }}
                     >
-                      <Linkedin className="w-4 h-4" />
-                    </div>
+                      <div
+                        className={`flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 border border-slate-100 transition-colors ${member.linkedin_url ? "text-blue-600 hover:border-blue-300 hover:bg-blue-50" : "text-slate-300 cursor-not-allowed"}`}
+                        title={member.linkedin_url || "No LinkedIn"}
+                      >
+                        <Linkedin className="w-4 h-4" />
+                      </div>
+                    </a>
                   </div>
                 </div>
               </div>
@@ -775,108 +829,139 @@ export default function AdminTeam() {
 
       {/* 1. Form Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[600px] h-[90vh] p-0 flex flex-col rounded-lg">
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>
               {editingId ? "Edit Team Member" : "Add Team Member"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  required
-                  placeholder="e.g. Advith"
-                />
+          <div className="flex-1 overflow-y-auto px-6">
+            <form
+              id="team-form"
+              onSubmit={handleFormSubmit}
+              className="space-y-4 pb-6"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        name: e.target.value.toUpperCase(),
+                      })
+                    }
+                    required
+                    placeholder="e.g. Advith"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Designation</Label>
+                  <Input
+                    value={formData.designation}
+                    onChange={(e) =>
+                      setFormData({ ...formData, designation: e.target.value })
+                    }
+                    required
+                    placeholder="e.g. Coordinator"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Designation</Label>
-                <Input
-                  value={formData.designation}
-                  onChange={(e) =>
-                    setFormData({ ...formData, designation: e.target.value })
-                  }
-                  required
-                  placeholder="e.g. Coordinator"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Academic Batch</Label>
-                <Input
-                  value={formData.academic_batch}
-                  onChange={(e) =>
-                    setFormData({ ...formData, academic_batch: e.target.value })
-                  }
-                  placeholder="e.g. 2024"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Batch Year</Label>
+                  <Input
+                    value={formData.batch_year}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        batch_year: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. 2024"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-8">
+                  <Switch
+                    checked={formData.is_active}
+                    onCheckedChange={(c) =>
+                      setFormData({ ...formData, is_active: c })
+                    }
+                  />
+                  <Label>Active Member</Label>
+                </div>
               </div>
-              <div className="flex items-center gap-2 pt-8">
-                <Switch
-                  checked={formData.is_active}
-                  onCheckedChange={(c) =>
-                    setFormData({ ...formData, is_active: c })
-                  }
-                />
-                <Label>Active Member</Label>
-              </div>
-            </div>
-
-            <ImageUpload
-              value={formData.image_url || ""}
-              onChange={(url) => setFormData({ ...formData, image_url: url })}
-              folder="team"
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  value={formData.email || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="email@example.com"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={formData.phone || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  placeholder="+91..."
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>LinkedIn</Label>
-              <Input
-                value={formData.linkedin_url || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, linkedin_url: e.target.value })
-                }
-                placeholder="https://linkedin.com/in/..."
+              <ImageUpload
+                value={formData.image_url || ""}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                folder="team"
               />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    value={formData.email || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    placeholder="email@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    value={formData.phone || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    placeholder="+91..."
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>LinkedIn</Label>
+                <Input
+                  value={formData.linkedin_url || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linkedin_url: e.target.value })
+                  }
+                  placeholder="https://linkedin.com/in/..."
+                />
+              </div>
+            </form>
+          </div>
+          <div className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 rounded-md">
+            <div className="flex justify-end gap-3 px-6 py-4">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => {
+                  const form = document.querySelector(
+                    "#team-form",
+                  ) as HTMLFormElement | null;
+                  form?.requestSubmit();
+                }}
+              >
+                Save Changes
+              </Button>
             </div>
-            <Button type="submit" className="w-full">
-              Save Changes
-            </Button>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* 2. Access Dialog (Supports Single & Bulk) */}
       <Dialog open={isAccessOpen} onOpenChange={setIsAccessOpen}>
         <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>
               {selectedMember
                 ? `Admin Access: ${selectedMember.name}`
@@ -943,7 +1028,7 @@ export default function AdminTeam() {
       {/* 3. Archive Dialog */}
       <Dialog open={isArchiveOpen} onOpenChange={setIsArchiveOpen}>
         <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>
               Move{" "}
               {selectedMember

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useAboutContent,
@@ -29,6 +29,7 @@ const AdminAbout = () => {
     mission: "",
     vision: "",
   });
+  const [isContentDirty, setIsContentDirty] = useState(false);
 
   const [batchData, setBatchData] = useState({
     batch_1_label: "",
@@ -38,6 +39,20 @@ const AdminAbout = () => {
     batch_2_male: "",
     batch_2_female: "",
   });
+  const [isBatchDirty, setIsBatchDirty] = useState(false);
+
+  // --- Memoized settings map ---
+  const settingsMap = useMemo(() => {
+    if (!settings) return {};
+    const map: Record<
+      string,
+      { id: string; setting_key: string; setting_value: string }
+    > = {};
+    settings.forEach((s) => {
+      map[s.setting_key] = s;
+    });
+    return map;
+  }, [settings]);
 
   // --- Load Data ---
   useEffect(() => {
@@ -48,33 +63,23 @@ const AdminAbout = () => {
         mission: aboutContent.mission || "",
         vision: aboutContent.vision || "",
       });
+      setIsContentDirty(false);
     }
   }, [aboutContent]);
 
   useEffect(() => {
     if (settings) {
       setBatchData({
-        batch_1_label:
-          settings.find((s) => s.setting_key === "batch_1_label")
-            ?.setting_value || "",
-        batch_1_male:
-          settings.find((s) => s.setting_key === "batch_1_male")
-            ?.setting_value || "0",
-        batch_1_female:
-          settings.find((s) => s.setting_key === "batch_1_female")
-            ?.setting_value || "0",
-        batch_2_label:
-          settings.find((s) => s.setting_key === "batch_2_label")
-            ?.setting_value || "",
-        batch_2_male:
-          settings.find((s) => s.setting_key === "batch_2_male")
-            ?.setting_value || "0",
-        batch_2_female:
-          settings.find((s) => s.setting_key === "batch_2_female")
-            ?.setting_value || "0",
+        batch_1_label: settingsMap["batch_1_label"]?.setting_value || "",
+        batch_1_male: settingsMap["batch_1_male"]?.setting_value || "0",
+        batch_1_female: settingsMap["batch_1_female"]?.setting_value || "0",
+        batch_2_label: settingsMap["batch_2_label"]?.setting_value || "",
+        batch_2_male: settingsMap["batch_2_male"]?.setting_value || "0",
+        batch_2_female: settingsMap["batch_2_female"]?.setting_value || "0",
       });
+      setIsBatchDirty(false);
     }
-  }, [settings]);
+  }, [settings, settingsMap]);
 
   // --- Handlers ---
   const handleSaveContent = async () => {
@@ -86,6 +91,7 @@ const AdminAbout = () => {
         vision: content.vision || null,
       });
       toast.success("Mission & Vision saved");
+      setIsContentDirty(false);
     } catch (error) {
       toast.error("Failed to save content");
     }
@@ -96,17 +102,20 @@ const AdminAbout = () => {
       const keys = Object.keys(batchData);
       await Promise.all(
         keys.map((key) => {
-          const settingObj = settings?.find((s) => s.setting_key === key);
+          const settingObj = settingsMap[key];
           if (settingObj) {
             return updateSetting.mutateAsync({
               id: settingObj.id,
-              setting_value: batchData[key as keyof typeof batchData],
+              setting_value: String(
+                Number(batchData[key as keyof typeof batchData]) || 0,
+              ),
             });
           }
           return Promise.resolve();
         }),
       );
       toast.success("Batch stats saved");
+      setIsBatchDirty(false);
     } catch (error) {
       toast.error("Failed to save stats");
     }
@@ -115,7 +124,9 @@ const AdminAbout = () => {
   if (loadingContent || loadingSettings)
     return (
       <AdminLayout title="About Section">
-        <Loader2 className="animate-spin" />
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="animate-spin" />
+        </div>
       </AdminLayout>
     );
 
@@ -134,18 +145,20 @@ const AdminAbout = () => {
               <Label>Section Title</Label>
               <Input
                 value={content.title}
-                onChange={(e) =>
-                  setContent({ ...content, title: e.target.value })
-                }
+                onChange={(e) => {
+                  setContent({ ...content, title: e.target.value });
+                  setIsContentDirty(true);
+                }}
               />
             </div>
             <div className="space-y-2">
               <Label>Main Description</Label>
               <Textarea
                 value={content.description}
-                onChange={(e) =>
-                  setContent({ ...content, description: e.target.value })
-                }
+                onChange={(e) => {
+                  setContent({ ...content, description: e.target.value });
+                  setIsContentDirty(true);
+                }}
                 rows={3}
               />
             </div>
@@ -155,9 +168,10 @@ const AdminAbout = () => {
                 <Textarea
                   className="min-h-[120px]"
                   value={content.mission}
-                  onChange={(e) =>
-                    setContent({ ...content, mission: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setContent({ ...content, mission: e.target.value });
+                    setIsContentDirty(true);
+                  }}
                 />
               </div>
               <div className="space-y-2">
@@ -165,15 +179,16 @@ const AdminAbout = () => {
                 <Textarea
                   className="min-h-[120px]"
                   value={content.vision}
-                  onChange={(e) =>
-                    setContent({ ...content, vision: e.target.value })
-                  }
+                  onChange={(e) => {
+                    setContent({ ...content, vision: e.target.value });
+                    setIsContentDirty(true);
+                  }}
                 />
               </div>
             </div>
             <Button
               onClick={handleSaveContent}
-              disabled={upsertContent.isPending}
+              disabled={upsertContent.isPending || !isContentDirty}
             >
               {upsertContent.isPending && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -201,12 +216,13 @@ const AdminAbout = () => {
                   <Label>Batch Name</Label>
                   <Input
                     value={batchData.batch_1_label}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setBatchData({
                         ...batchData,
                         batch_1_label: e.target.value,
-                      })
-                    }
+                      });
+                      setIsBatchDirty(true);
+                    }}
                     placeholder="MBA 2024-26"
                   />
                 </div>
@@ -215,12 +231,13 @@ const AdminAbout = () => {
                   <Input
                     type="number"
                     value={batchData.batch_1_male}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setBatchData({
                         ...batchData,
                         batch_1_male: e.target.value,
-                      })
-                    }
+                      });
+                      setIsBatchDirty(true);
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -228,12 +245,13 @@ const AdminAbout = () => {
                   <Input
                     type="number"
                     value={batchData.batch_1_female}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setBatchData({
                         ...batchData,
                         batch_1_female: e.target.value,
-                      })
-                    }
+                      });
+                      setIsBatchDirty(true);
+                    }}
                   />
                 </div>
               </div>
@@ -249,12 +267,13 @@ const AdminAbout = () => {
                   <Label>Batch Name</Label>
                   <Input
                     value={batchData.batch_2_label}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setBatchData({
                         ...batchData,
                         batch_2_label: e.target.value,
-                      })
-                    }
+                      });
+                      setIsBatchDirty(true);
+                    }}
                     placeholder="MBA 2025-27"
                   />
                 </div>
@@ -263,12 +282,13 @@ const AdminAbout = () => {
                   <Input
                     type="number"
                     value={batchData.batch_2_male}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setBatchData({
                         ...batchData,
                         batch_2_male: e.target.value,
-                      })
-                    }
+                      });
+                      setIsBatchDirty(true);
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -276,12 +296,13 @@ const AdminAbout = () => {
                   <Input
                     type="number"
                     value={batchData.batch_2_female}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       setBatchData({
                         ...batchData,
                         batch_2_female: e.target.value,
-                      })
-                    }
+                      });
+                      setIsBatchDirty(true);
+                    }}
                   />
                 </div>
               </div>
@@ -289,7 +310,7 @@ const AdminAbout = () => {
 
             <Button
               onClick={handleSaveBatchData}
-              disabled={updateSetting.isPending}
+              disabled={updateSetting.isPending || !isBatchDirty}
             >
               {updateSetting.isPending && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -109,16 +109,6 @@ export default function AdminAlumni() {
     return () => clearTimeout(timer);
   }, [recentlyDeleted]);
 
-  useEffect(() => {
-    if (recentlyDeleted.length === 0) return;
-
-    const timer = setTimeout(() => {
-      setRecentlyDeleted([]);
-    }, 6000);
-
-    return () => clearTimeout(timer);
-  }, [recentlyDeleted]);
-
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -135,10 +125,13 @@ export default function AdminAlumni() {
 
   const filteredAlumni = useMemo(() => {
     if (!alumni) return [];
+    const query = search.trim().toLowerCase();
+    if (!query) return alumni;
     return alumni.filter(
       (m) =>
-        m.name.toLowerCase().includes(search.toLowerCase()) ||
-        String(m.batch_year ?? "").includes(search),
+        m.name.toLowerCase().includes(query) ||
+        String(m.batch_year ?? "").includes(query) ||
+        m.designation?.toLowerCase().includes(query),
     );
   }, [alumni, search]);
 
@@ -211,12 +204,18 @@ export default function AdminAlumni() {
 
       const errors: string[] = [];
       const validRows: ExcelAlumniRow[] = [];
+      const seen = new Set<string>();
 
       rows.forEach((row, index) => {
         const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
 
         if (existingKeys.has(key)) {
           errors.push(`Row ${index + 2}: Duplicate alumni (already exists)`);
+          return;
+        }
+
+        if (seen.has(key)) {
+          errors.push(`Row ${index + 2}: Duplicate alumni (duplicate in file)`);
           return;
         }
 
@@ -237,6 +236,7 @@ export default function AdminAlumni() {
           return;
         }
 
+        seen.add(key);
         validRows.push(row);
       });
 
@@ -252,22 +252,25 @@ export default function AdminAlumni() {
       alumni?.map((a) => `${a.name.toLowerCase()}-${a.batch_year}`),
     );
 
-    for (const row of excelPreview) {
-      const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
-
-      if (existingKeys.has(key)) continue;
-
-      await createMember.mutateAsync({
-        name: String(row.name),
-        designation: String(row.designation),
-        batch_year: String(row.batch_year),
-        email: row.email || "",
-        phone: row.phone || "",
-        linkedin_url: row.linkedin_url || "",
-        is_alumni: true,
-        is_active: false,
-      });
-    }
+    await Promise.allSettled(
+      excelPreview
+        .filter((row) => {
+          const key = `${String(row.name).toLowerCase()}-${row.batch_year}`;
+          return !existingKeys.has(key);
+        })
+        .map((row) =>
+          createMember.mutateAsync({
+            name: String(row.name),
+            designation: String(row.designation),
+            batch_year: String(row.batch_year),
+            email: row.email || "",
+            phone: row.phone || "",
+            linkedin_url: row.linkedin_url || "",
+            is_alumni: true,
+            is_active: false,
+          }),
+        ),
+    );
 
     setExcelPreview([]);
   };
@@ -460,7 +463,7 @@ export default function AdminAlumni() {
                 <Avatar className="h-12 w-12 border border-slate-100">
                   <AvatarImage src={member.image_url || ""} />
                   <AvatarFallback className="bg-slate-100 text-slate-500 font-bold">
-                    {member.name.slice(0, 2)}
+                    {member.name?.slice(0, 2) || "NA"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -522,78 +525,84 @@ export default function AdminAlumni() {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg h-[85vh] p-0 flex flex-col">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit" : "Add"} Alumni</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                />
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Batch</Label>
+                  <Input
+                    value={form.batch_year}
+                    onChange={(e) =>
+                      setForm({ ...form, batch_year: e.target.value })
+                    }
+                    required
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Batch</Label>
+                <Label>Designation</Label>
                 <Input
-                  value={form.batch_year}
+                  value={form.designation}
                   onChange={(e) =>
-                    setForm({ ...form, batch_year: e.target.value })
+                    setForm({ ...form, designation: e.target.value })
                   }
-                  required
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Designation</Label>
-              <Input
-                value={form.designation}
-                onChange={(e) =>
-                  setForm({ ...form, designation: e.target.value })
-                }
+              <ImageUpload
+                value={form.image_url}
+                onChange={(url) => setForm({ ...form, image_url: url })}
+                folder="team"
               />
-            </div>
-            <ImageUpload
-              value={form.image_url}
-              onChange={(url) => setForm({ ...form, image_url: url })}
-              folder="team"
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <Input
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    value={form.phone}
+                    onChange={(e) =>
+                      setForm({ ...form, phone: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    value={form.email}
+                    onChange={(e) =>
+                      setForm({ ...form, email: e.target.value })
+                    }
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>LinkedIn</Label>
                 <Input
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  value={form.linkedin_url}
+                  onChange={(e) =>
+                    setForm({ ...form, linkedin_url: e.target.value })
+                  }
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>LinkedIn</Label>
-              <Input
-                value={form.linkedin_url}
-                onChange={(e) =>
-                  setForm({ ...form, linkedin_url: e.target.value })
-                }
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={updateMember.isPending || createMember.isPending}
-            >
-              Save
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={updateMember.isPending || createMember.isPending}
+              >
+                Save
+              </Button>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -609,8 +618,13 @@ export default function AdminAlumni() {
             onClick={async () => {
               for (const m of recentlyDeleted) {
                 await createMember.mutateAsync({
-                  ...m,
-                  id: undefined,
+                  name: m.name,
+                  designation: m.designation,
+                  batch_year: m.batch_year,
+                  email: m.email,
+                  phone: m.phone,
+                  linkedin_url: m.linkedin_url,
+                  image_url: m.image_url,
                   is_alumni: true,
                   is_active: false,
                 });

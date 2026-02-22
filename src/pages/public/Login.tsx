@@ -8,8 +8,10 @@ import { Loader2, ArrowLeft, Shield, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { motion, useReducedMotion } from "framer-motion";
 import { SEO } from "@/components/SEO";
-import heroCampus from "@/assets/hero_campus.png"; // Ensure you have this asset or similar
+import heroCampus from "@/assets/hero_campus.png"; 
+import googleLogo from "@/assets/google.svg";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -17,6 +19,7 @@ const Login = () => {
   const [fullName, setFullName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthRedirecting, setOauthRedirecting] = useState(false);
 
   const reduceMotion = useReducedMotion();
 
@@ -51,15 +54,26 @@ const Login = () => {
         toast.success("Welcome back!");
         navigate("/admin", { replace: true });
       }
-    } catch (err: any) {
-      toast.error(err.message || "An unexpected error occurred");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "An unexpected error occurred";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   };
 
+  const toggleMode = () => {
+    setIsSignUp((p) => !p);
+    setPassword("");
+    setFullName("");
+  };
+
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+    <div
+      className="min-h-screen grid lg:grid-cols-2 bg-background"
+      aria-busy={oauthRedirecting}
+    >
       <SEO title="Login" description="Admin portal access for SAC" />
 
       {/* Left: Visual Side */}
@@ -96,10 +110,10 @@ const Login = () => {
       </div>
 
       {/* Right: Form Side */}
-      <div className="flex items-center justify-center p-6 lg:p-12 relative">
+      <div className="flex items-center justify-center px-4 py-6 lg:p-12 relative">
         <Button
           variant="ghost"
-          className="absolute top-6 left-6 gap-2 bg-background/60 backdrop-blur-md hover:bg-background/80"
+          className="absolute top-3 left-3 sm:top-6 sm:left-6 gap-2 bg-background/60 backdrop-blur-md hover:bg-background/80"
           onClick={() => navigate("/")}
         >
           <ArrowLeft className="w-4 h-4" /> Back to Home
@@ -111,16 +125,16 @@ const Login = () => {
           transition={
             reduceMotion ? { duration: 0 } : { duration: 0.4, ease: "easeOut" }
           }
-          className="w-full max-w-md space-y-8"
+          className="w-full max-w-md space-y-7"
         >
           {/* Mobile Logo */}
           {!sacLogoUrl ? null : (
-            <div className="flex lg:hidden justify-center mb-2">
+            <div className="flex lg:hidden justify-center mb-4">
               <div className="inline-flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-sm p-2 shadow-md">
                 <img
                   src={sacLogoUrl}
                   alt="SAC Logo"
-                  className="w-20 h-20 object-contain"
+                  className="w-16 h-16 object-contain"
                 />
               </div>
             </div>
@@ -128,7 +142,7 @@ const Login = () => {
 
           <div className="text-center">
             <h2 className="font-heading text-3xl font-bold">
-              {isSignUp ? "Create Account" : "Welcome Back"}
+              {isSignUp ? "Request Access" : "Welcome Back"}
             </h2>
             <p className="text-muted-foreground mt-2">
               {isSignUp
@@ -137,9 +151,57 @@ const Login = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <Button
+            size="lg"
+            className="w-full gap-3 bg-white text-black hover:bg-gray-100 shadow-sm"
+            aria-label="Sign in with Google"
+            onClick={async () => {
+              try {
+                setOauthRedirecting(true);
+                await supabase.auth.signInWithOAuth({
+                  provider: "google",
+                  options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                  },
+                });
+              } catch {
+                setOauthRedirecting(false);
+                toast.error("Failed to start Google sign-in");
+              }
+            }}
+            disabled={oauthRedirecting}
+          >
+            {oauthRedirecting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Redirecting…
+              </>
+            ) : (
+              <>
+                <img src={googleLogo} className="w-4 h-4" alt="Google logo" />
+                Continue with Google
+              </>
+            )}
+          </Button>
+
+          <p className="text-xs text-muted-foreground text-center">
+            Only verified SAC members with college email access can sign in.
+          </p>
+
+          <div className="relative my-1">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label>Full Name</Label>
                 <Input
                   value={fullName}
@@ -151,7 +213,7 @@ const Login = () => {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label>Email Address</Label>
               <Input
                 type="email"
@@ -159,11 +221,12 @@ const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@iimsambalpur.ac.in"
                 required
+                autoComplete="email"
                 className="bg-secondary/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label>Password</Label>
               <Input
                 type="password"
@@ -171,6 +234,7 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                autoComplete={isSignUp ? "new-password" : "current-password"}
                 className="bg-secondary/50 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-0"
               />
             </div>
@@ -179,12 +243,12 @@ const Login = () => {
               type="submit"
               size="lg"
               className="w-full bg-primary hover:bg-primary/90"
-              disabled={loading}
+              disabled={loading || authLoading}
             >
               {loading ? (
                 <Loader2 className="animate-spin" />
               ) : isSignUp ? (
-                "Create Account"
+                "Request Access"
               ) : (
                 "Sign In"
               )}
@@ -203,29 +267,6 @@ const Login = () => {
               Secure admin access
             </div>
           )}
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or
-              </span>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm font-medium text-accent hover:underline"
-            >
-              {isSignUp
-                ? "Already have an account? Sign in"
-                : "New here? Create an account"}
-            </button>
-          </div>
         </motion.div>
       </div>
     </div>

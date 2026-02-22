@@ -76,7 +76,7 @@ const StatCard = ({
           <section>
             {isLoading ? (
               <Skeleton
-                className="h-9 w-16 mb-1"
+                className="h-9 w-20 mb-1"
                 aria-label={`${title} loading`}
               />
             ) : (
@@ -163,6 +163,9 @@ const ActionCard = ({
 const AdminDashboard = () => {
   const { user } = useAuth();
 
+  const displayName =
+    user?.user_metadata?.name || user?.email?.split("@")[0] || "Admin";
+
   // Data Hooks
   const { data: teamMembers, isLoading: teamLoading } = useTeamMembers();
   const { data: alumni, isLoading: alumniLoading } = useAlumniMembers();
@@ -207,62 +210,78 @@ const AdminDashboard = () => {
     day: "numeric",
   });
 
-  const stats = [
-    {
-      title: "Team Members",
-      value: teamMembers?.length || 0,
-      icon: Users,
-      href: "/admin/team",
-      colorClass: "text-blue-600 group-hover:text-blue-700",
-      isLoading: teamLoading,
-    },
-    {
-      title: "Upcoming Events",
-      value: upcomingEventsCount,
-      icon: Calendar,
-      href: "/admin/events",
-      colorClass: "text-amber-500 group-hover:text-amber-600",
-      isLoading: eventsLoading,
-    },
-    {
-      title: "Active Committees",
-      value: committees?.length ?? 0,
-      icon: Building2,
-      href: "/admin/committees",
-      colorClass: "text-purple-600 group-hover:text-purple-700",
-      isLoading: commLoading,
-    },
-    {
-      title: "Clubs",
-      value: clubs?.length ?? 0,
-      icon: Briefcase,
-      href: "/admin/clubs",
-      colorClass: "text-teal-600 group-hover:text-teal-700",
-      isLoading: clubsLoading,
-    },
-    {
-      title: "Alumni Network",
-      value: alumni?.length || 0,
-      icon: GraduationCap,
-      href: "/admin/alumni",
-      colorClass: "text-indigo-600 group-hover:text-indigo-700",
-      isLoading: alumniLoading,
-    },
-    {
-      title: "Total Messages",
-      value: messages?.length || 0,
-      icon: MessageSquare,
-      href: "/admin/messages",
-      colorClass: "text-rose-500 group-hover:text-rose-600",
-      isLoading: msgLoading,
-    },
-  ];
+  const stats = React.useMemo(
+    () => [
+      {
+        title: "Team Members",
+        value: teamMembers?.length || 0,
+        icon: Users,
+        href: "/admin/team",
+        colorClass: "text-blue-600 group-hover:text-blue-700",
+        isLoading: teamLoading,
+      },
+      {
+        title: "Upcoming Events",
+        value: upcomingEventsCount,
+        icon: Calendar,
+        href: "/admin/events",
+        colorClass: "text-amber-500 group-hover:text-amber-600",
+        isLoading: eventsLoading,
+      },
+      {
+        title: "Active Committees",
+        value: committees?.length ?? 0,
+        icon: Building2,
+        href: "/admin/committees",
+        colorClass: "text-purple-600 group-hover:text-purple-700",
+        isLoading: commLoading,
+      },
+      {
+        title: "Clubs",
+        value: clubs?.length ?? 0,
+        icon: Briefcase,
+        href: "/admin/clubs",
+        colorClass: "text-teal-600 group-hover:text-teal-700",
+        isLoading: clubsLoading,
+      },
+      {
+        title: "Alumni Network",
+        value: alumni?.length || 0,
+        icon: GraduationCap,
+        href: "/admin/alumni",
+        colorClass: "text-indigo-600 group-hover:text-indigo-700",
+        isLoading: alumniLoading,
+      },
+      {
+        title: "Inbox Messages",
+        value: messages?.length || 0,
+        icon: MessageSquare,
+        href: "/admin/messages",
+        colorClass: "text-rose-500 group-hover:text-rose-600",
+        isLoading: msgLoading,
+      },
+    ],
+    [
+      teamMembers,
+      upcomingEventsCount,
+      committees,
+      clubs,
+      alumni,
+      messages,
+      teamLoading,
+      eventsLoading,
+      commLoading,
+      clubsLoading,
+      alumniLoading,
+      msgLoading,
+    ],
+  );
 
   return (
     <AdminLayout title="Overview">
       <header className="mb-10" aria-label="Welcome section">
         <h1 className="text-2xl font-bold text-slate-900 mb-1 font-heading">
-          {greeting}, {user?.email?.split("@")[0]} 👋
+          {greeting}, {displayName} 👋
         </h1>
         <time
           dateTime={new Date().toISOString()}
@@ -302,7 +321,7 @@ const AdminDashboard = () => {
                 </>
               )}
               {!unreadMessages && !upcomingEventsCount && (
-                <>No immediate notifications at this time.</>
+                <>You're all caught up 🎉 No urgent actions right now.</>
               )}
             </p>
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import {
   useHeroBanners,
@@ -65,30 +65,28 @@ export default function AdminHeroBanners() {
   const [bannerForm, setBannerForm] = useState(initialBannerForm);
 
   // Load Settings
+  // Optimize settings lookup by creating a map
+  const settingsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (settings) {
+      for (const s of settings) {
+        map[s.setting_key] = s.setting_value;
+      }
+    }
+    return map;
+  }, [settings]);
   useEffect(() => {
     if (settings) {
       setHeroContent({
-        hero_line_1:
-          settings.find((s) => s.setting_key === "hero_line_1")
-            ?.setting_value || "",
-        hero_line_2:
-          settings.find((s) => s.setting_key === "hero_line_2")
-            ?.setting_value || "",
-        hero_line_3:
-          settings.find((s) => s.setting_key === "hero_line_3")
-            ?.setting_value || "",
-        hero_description:
-          settings.find((s) => s.setting_key === "hero_description")
-            ?.setting_value || "",
-        hero_cta_text:
-          settings.find((s) => s.setting_key === "hero_cta_text")
-            ?.setting_value || "",
-        hero_cta_link:
-          settings.find((s) => s.setting_key === "hero_cta_link")
-            ?.setting_value || "",
+        hero_line_1: settingsMap.hero_line_1 || "",
+        hero_line_2: settingsMap.hero_line_2 || "",
+        hero_line_3: settingsMap.hero_line_3 || "",
+        hero_description: settingsMap.hero_description || "",
+        hero_cta_text: settingsMap.hero_cta_text || "",
+        hero_cta_link: settingsMap.hero_cta_link || "",
       });
     }
-  }, [settings]);
+  }, [settingsMap, settings]);
 
   // Save Text Content
   const handleSaveContent = async () => {
@@ -129,12 +127,15 @@ export default function AdminHeroBanners() {
     }
   };
 
+  // Memoize initialBannerForm to prevent unnecessary re-renders
+  const memoizedInitialBannerForm = useMemo(() => initialBannerForm, []);
   const openNew = () => {
-    setBannerForm(initialBannerForm);
+    setBannerForm(memoizedInitialBannerForm);
     setEditingId(null);
     setIsDialogOpen(true);
   };
   const handleEdit = (b: HeroBanner) => {
+    // Memoize the banner object to prevent unnecessary renders
     setBannerForm({
       title: b.title || "",
       subtitle: b.subtitle || "",
@@ -274,6 +275,7 @@ export default function AdminHeroBanners() {
                       <img
                         src={banner.image_url}
                         className={`w-full h-full object-cover ${!banner.is_active && "opacity-50 grayscale"}`}
+                        alt={banner.title || "Hero banner image"}
                       />
                     </div>
                     <div className="flex-1 flex items-center gap-2">
@@ -291,6 +293,7 @@ export default function AdminHeroBanners() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label="Edit banner"
                         onClick={() => handleEdit(banner)}
                       >
                         <Pencil className="w-4 h-4" />
@@ -299,6 +302,7 @@ export default function AdminHeroBanners() {
                         variant="ghost"
                         size="icon"
                         className="text-red-500"
+                        aria-label="Delete banner"
                         onClick={() => {
                           if (confirm("Delete?"))
                             deleteBanner.mutate(banner.id);
@@ -350,12 +354,15 @@ export default function AdminHeroBanners() {
                   className="w-24"
                   placeholder="Order"
                   value={bannerForm.display_order}
-                  onChange={(e) =>
+                  min={0}
+                  onChange={(e) => {
+                    let val = parseInt(e.target.value);
+                    if (isNaN(val) || val < 0) val = 0;
                     setBannerForm({
                       ...bannerForm,
-                      display_order: parseInt(e.target.value) || 0,
-                    })
-                  }
+                      display_order: val,
+                    });
+                  }}
                 />
               </div>
               <Button

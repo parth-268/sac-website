@@ -3,7 +3,12 @@ import { Menu, X, Settings, ChevronRight, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/useAuth";
 import { Link, useLocation } from "react-router-dom";
-import { motion, AnimatePresence, type Transition } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  type Transition,
+  useReducedMotion,
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Bell } from "lucide-react";
@@ -50,14 +55,29 @@ export const Navbar = () => {
     (s) => s.setting_key === "sac_logo_url",
   )?.setting_value;
 
+  const prefersReducedMotion = useReducedMotion();
+
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16);
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setScrolled(window.scrollY > 16);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = isOpen ? "hidden" : "unset";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
   }, [isOpen]);
 
   // Close mobile menu on route change
@@ -88,6 +108,8 @@ export const Navbar = () => {
   const primaryText = scrolled ? "text-slate-900" : "text-white";
   const secondaryText = scrolled ? "text-slate-500" : "text-white/70";
 
+  const bellColor = scrolled ? "text-slate-700" : "text-white/80";
+
   const { data: unreadMessages } = useContactSubmissions("unread");
   const unreadCount = unreadMessages?.length ?? 0;
 
@@ -99,7 +121,10 @@ export const Navbar = () => {
         aria-label="Primary"
         initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={NAV_FADE}
+        transition={{
+          ...NAV_FADE,
+          duration: prefersReducedMotion ? 0 : NAV_FADE.duration,
+        }}
         className={cn(
           "fixed top-0 inset-x-0 z-[100] transition-colors duration-300",
           navBg,
@@ -206,14 +231,15 @@ export const Navbar = () => {
                 aria-label={`Unread messages: ${unreadCount}`}
                 title="Unread messages"
                 className={cn(
-                  "relative p-2 rounded-full transition-colors",
+                  "relative p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                   scrolled ? "hover:bg-slate-100" : "hover:bg-white/10",
                 )}
               >
-                <Bell className="h-5 w-5 text-slate-700" />
+                <Bell className={cn("h-5 w-5", bellColor)} />
 
                 {unreadCount > 0 && (
                   <span
+                    aria-live="polite"
                     className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1
         flex items-center justify-center rounded-full bg-accent text-black
         text-[10px] font-bold leading-none"
@@ -225,29 +251,27 @@ export const Navbar = () => {
             )}
             {user ? (
               isEditor && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  asChild
-                  className="rounded-full border-accent/40 text-accent hover:bg-accent hover:text-black"
+                <Link
+                  to="/admin"
+                  aria-label="Admin dashboard"
+                  title="Admin dashboard"
+                  className={cn(
+                    "p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                    scrolled ? "hover:bg-slate-100" : "hover:bg-white/10",
+                  )}
                 >
-                  <Link to="/admin">
-                    <Settings className="w-4 h-4 mr-1" />
-                    Admin
-                  </Link>
-                </Button>
+                  <Settings className={cn("h-5 w-5", bellColor)} />
+                </Link>
               )
             ) : (
-              <Button
-                size="sm"
-                asChild
-                className="rounded-full bg-accent text-black hover:bg-accent/90"
+              <Link
+                to="/login"
+                aria-label="Login"
+                title="Login"
+                className="p-2 rounded-full bg-accent text-black hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
-                <Link to="/login">
-                  <LogIn className="w-4 h-4 mr-1" />
-                  Login
-                </Link>
-              </Button>
+                <LogIn className="h-5 w-5" />
+              </Link>
             )}
           </div>
 
@@ -255,7 +279,7 @@ export const Navbar = () => {
           <button
             onClick={() => setIsOpen((v) => !v)}
             className={cn(
-              "md:hidden ml-auto p-2 rounded-full",
+              "md:hidden ml-auto p-2 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               scrolled
                 ? "text-slate-900 hover:bg-slate-100"
                 : "text-white hover:bg-white/10",
@@ -278,7 +302,7 @@ export const Navbar = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
               className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-[2px] md:hidden"
               onClick={() => setIsOpen(false)}
             />
@@ -289,7 +313,10 @@ export const Navbar = () => {
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={MENU_SLIDE}
+              transition={{
+                ...MENU_SLIDE,
+                duration: prefersReducedMotion ? 0 : MENU_SLIDE.duration,
+              }}
               className="fixed inset-y-0 right-0 z-[90] w-[90%] max-w-sm bg-[#0b1220]/80 backdrop-blur-xl text-white md:hidden pt-20 px-6 border-l border-white/10"
             >
               <nav className="flex flex-col space-y-1">
@@ -326,6 +353,7 @@ export const Navbar = () => {
                   <Link
                     to="/admin/messages"
                     onClick={() => setIsOpen(false)}
+                    aria-label={`Unread messages: ${unreadCount}`}
                     className="flex items-center gap-3 w-full px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold transition-colors relative mb-2"
                   >
                     <Bell className="w-5 h-5" />

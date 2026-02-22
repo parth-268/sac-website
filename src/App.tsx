@@ -10,6 +10,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Loader2 } from "lucide-react";
 import ScrollToTop from "@/components/utils/ScrollToTop";
 import { AppErrorBoundary } from "@/components/utils/AppErrorBoundary";
+import OAuthCallback from "./contexts/OAuthCallback";
+import PostAuth from "./contexts/PostAuth";
 
 // Lazy Imports...
 const Index = lazy(() => import("@/pages/public/Index"));
@@ -202,6 +204,9 @@ const App = () => (
                   </Route>
 
                   <Route path="*" element={<NotFound />} />
+
+                  <Route path="/auth/callback" element={<OAuthCallback />} />
+                  <Route path="/post-auth" element={<PostAuth />} />
                 </Routes>
               </Suspense>
             </AppErrorBoundary>

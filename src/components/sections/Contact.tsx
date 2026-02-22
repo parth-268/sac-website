@@ -117,6 +117,12 @@ export const Contact = () => {
     }
   }, [submitted, prefersReducedMotion]);
 
+  useEffect(() => {
+    if (submitted && Object.values(formData).some(Boolean)) {
+      setSubmitted(false);
+    }
+  }, [formData, submitted]);
+
   const { data: settings } = useSiteSettings();
   const submitContact = useSubmitContactForm();
 
@@ -149,6 +155,8 @@ export const Contact = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (submitContact.isPending || submitted) return;
+
     const form = e.currentTarget as HTMLFormElement & {
       company?: { value: string };
     };
@@ -167,7 +175,7 @@ export const Contact = () => {
       setFormData({ name: "", email: "", subject: "", message: "" });
       setTouched({});
     } catch {
-      toast.error("Failed to send message");
+      toast.error("Something went wrong. Please try again later.");
     }
   };
 
@@ -258,7 +266,7 @@ export const Contact = () => {
                 autoComplete="off"
                 className="hidden"
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FloatingInput
                   id="name"
                   label="Name"

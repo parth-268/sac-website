@@ -44,6 +44,12 @@ export const About = () => {
     ease: EASE_OUT,
   };
 
+  const FADE_UP = {
+    initial: { opacity: 0, y: 18 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true },
+  };
+
   const settingsMap = useMemo<Record<string, string>>(() => {
     if (!settings) return {};
     return Object.fromEntries(
@@ -109,7 +115,7 @@ export const About = () => {
           transition={{ duration: 0.6, ease: EASE_OUT }}
           className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12"
         >
-          <div className="max-w-2xl">
+          <header className="max-w-2xl">
             <div className="flex items-center gap-3 mb-3">
               <span className="w-10 h-[2px] bg-accent"></span>
               <span className="text-accent font-bold tracking-widest text-xs uppercase">
@@ -136,8 +142,8 @@ export const About = () => {
                 </>
               )}
             </h2>
-          </div>
-          <p className="text-slate-500 text-sm max-w-md md:text-right leading-relaxed font-medium">
+          </header>
+          <p className="text-slate-500 text-sm max-w-md md:text-right leading-relaxed font-medium whitespace-pre-line">
             {aboutContent?.description ||
               "Fostering leadership, culture, and academic excellence through student governance."}
           </p>
@@ -163,7 +169,7 @@ export const About = () => {
               <h3 className="font-heading text-2xl font-bold text-white mb-3">
                 Our Vision
               </h3>
-              <p className="text-slate-300 text-sm leading-relaxed max-w-sm">
+              <p className="text-slate-300 text-sm leading-relaxed max-w-sm whitespace-pre-line">
                 {aboutContent?.vision ||
                   "To create a vibrant, inclusive, and dynamic campus ecosystem."}
               </p>
@@ -204,7 +210,7 @@ export const About = () => {
 
             <div className="space-y-3">
               {[b1, b2].map((b, i) => {
-                const total = b.male + b.female || 1;
+                const total = Math.max(b.male + b.female, 1);
                 return (
                   <div key={i}>
                     <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
@@ -246,12 +252,10 @@ export const About = () => {
 
           {/* Clubs */}
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            {...FADE_UP}
             transition={{ ...CARD_TRANSITION, delay: 0.1 }}
             className="bg-white border border-slate-100 rounded-2xl relative overflow-hidden will-change-transform"
-            whileHover={{ y: -4 }}
+            whileHover={{ translateY: -4 }}
           >
             <Link
               to="/clubs"
@@ -267,12 +271,10 @@ export const About = () => {
 
           {/* Committees */}
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            {...FADE_UP}
             transition={{ ...CARD_TRANSITION, delay: 0.15 }}
             className="bg-white border border-slate-100 rounded-2xl relative overflow-hidden will-change-transform"
-            whileHover={{ y: -4 }}
+            whileHover={{ translateY: -4 }}
           >
             <Link
               to="/committees"
@@ -313,7 +315,7 @@ export const About = () => {
                 Our Mission
               </h4>
             </div>
-            <p className="text-slate-600 text-sm leading-relaxed">
+            <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
               {aboutContent?.mission ||
                 "To represent student interests, foster holistic development, and build a legacy of excellence for future generations."}
             </p>
@@ -329,7 +331,7 @@ export const About = () => {
           >
             <Link
               to="/events"
-              className="block h-full bg-white border border-slate-200 rounded-2xl p-6 hover:border-accent transition-colors duration-300"
+              className="block h-full bg-white border border-slate-200 rounded-2xl p-6 hover:border-accent transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               <div className="flex justify-between items-start h-full">
                 <div className="space-y-2">

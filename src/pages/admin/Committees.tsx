@@ -6,7 +6,8 @@ type EditableMember = {
   designation: string;
   phone: string | null;
 };
-function SortableEditableRow({
+import React from "react";
+const SortableEditableRow = React.memo(function SortableEditableRow({
   member,
   index,
   role,
@@ -52,7 +53,9 @@ function SortableEditableRow({
           className="w-full min-w-0 h-9 sm:h-9"
           value={member.name}
           placeholder="Name"
+          aria-label="Member name"
           onChange={(e) => onEdit(member.uid, "name", e.target.value)}
+          onBlur={(e) => onEdit(member.uid, "name", e.target.value.trim())}
         />
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
@@ -60,7 +63,11 @@ function SortableEditableRow({
           className="w-full min-w-0 h-9 sm:h-9"
           value={member.designation}
           placeholder="Designation"
+          aria-label="Member designation"
           onChange={(e) => onEdit(member.uid, "designation", e.target.value)}
+          onBlur={(e) =>
+            onEdit(member.uid, "designation", e.target.value.trim())
+          }
         />
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:gap-2 sm:items-center col-span-1 sm:col-span-1">
@@ -68,6 +75,7 @@ function SortableEditableRow({
           className="w-full min-w-0 h-9 sm:h-9"
           value={member.phone ?? ""}
           placeholder="Phone"
+          aria-label="Member phone"
           onChange={(e) => onEdit(member.uid, "phone", e.target.value)}
         />
       </div>
@@ -120,7 +128,7 @@ function SortableEditableRow({
       </div>
     </div>
   );
-}
+});
 import { useState, useEffect, useCallback } from "react";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -153,6 +161,7 @@ import {
   Users,
   ArrowUp,
   ArrowDown,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -175,6 +184,17 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 type Committee = Tables<"committees">;
+
+// Helper to get storage path from a public URL (for logo removal)
+const getStoragePathFromUrl = (url: string) => {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split("/uploads/");
+    return parts[1] ?? null;
+  } catch {
+    return null;
+  }
+};
 
 // CommitteeCard: clickable card for a committee (with counts, hover, etc)
 function CommitteeCard({
@@ -422,11 +442,29 @@ export default function AdminCommittees() {
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap items-center gap-4">
                     {logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt={`${name} logo`}
-                        className="h-16 w-16 rounded-md object-cover border"
-                      />
+                      <div className="relative">
+                        <img
+                          src={logoUrl}
+                          alt={`${name} logo`}
+                          className="h-16 w-16 rounded-md object-cover border"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const path = getStoragePathFromUrl(logoUrl);
+                            if (path) {
+                              await deleteFile(path);
+                            }
+                            setLogoUrl("");
+                            setLogoPath(null);
+                            toast.success("Logo removed");
+                          }}
+                          className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 hover:opacity-90 transition"
+                          aria-label="Remove logo"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     ) : (
                       <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-muted to-muted/60 flex items-center justify-center border">
                         <Users className="h-8 w-8 text-muted-foreground" />
@@ -448,13 +486,9 @@ export default function AdminCommittees() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          // If there was a previous uploaded logo, delete it before uploading new
+                          // delete old uploaded logo if present
                           if (logoPath) {
-                            try {
-                              await deleteFile(logoPath);
-                            } catch (err) {
-                              // ignore error
-                            }
+                            await deleteFile(logoPath);
                           }
                           const res = await uploadFile(file, "committee-logos");
                           if (res) {
@@ -994,15 +1028,25 @@ function MembersSection({
             size="sm"
             className="mt-3 w-full sm:w-auto"
             onClick={() => {
-              setSeniorMembers((prev) => [
-                ...prev,
-                {
-                  uid: crypto.randomUUID(),
-                  name: "",
-                  designation: "",
-                  phone: null,
-                },
-              ]);
+              setSeniorMembers((prev) => {
+                // Prevent adding new if last row is empty for name and designation
+                if (
+                  prev.length > 0 &&
+                  prev[prev.length - 1].name.trim() === "" &&
+                  prev[prev.length - 1].designation.trim() === ""
+                ) {
+                  return prev;
+                }
+                return [
+                  ...prev,
+                  {
+                    uid: crypto.randomUUID(),
+                    name: "",
+                    designation: "",
+                    phone: null,
+                  },
+                ];
+              });
               setMembersDirty(true);
             }}
           >
@@ -1066,15 +1110,25 @@ function MembersSection({
             size="sm"
             className="mt-3 w-full sm:w-auto"
             onClick={() => {
-              setJuniorMembers((prev) => [
-                ...prev,
-                {
-                  uid: crypto.randomUUID(),
-                  name: "",
-                  designation: "",
-                  phone: null,
-                },
-              ]);
+              setJuniorMembers((prev) => {
+                // Prevent adding new if last row is empty for name and designation
+                if (
+                  prev.length > 0 &&
+                  prev[prev.length - 1].name.trim() === "" &&
+                  prev[prev.length - 1].designation.trim() === ""
+                ) {
+                  return prev;
+                }
+                return [
+                  ...prev,
+                  {
+                    uid: crypto.randomUUID(),
+                    name: "",
+                    designation: "",
+                    phone: null,
+                  },
+                ];
+              });
               setMembersDirty(true);
             }}
           >

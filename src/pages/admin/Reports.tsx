@@ -58,6 +58,7 @@ const AdminReports = () => {
     file_url: "",
     description: "",
     display_order: 0,
+    document_type: "other",
   });
 
   const resetForm = () => {
@@ -67,6 +68,7 @@ const AdminReports = () => {
       file_url: "",
       description: "",
       display_order: 0,
+      document_type: "other",
     });
     setEditingReport(null);
   };
@@ -79,6 +81,7 @@ const AdminReports = () => {
       file_url: report.file_url,
       description: report.description || "",
       display_order: report.display_order,
+      document_type: report.document_type,
     });
     setIsDialogOpen(true);
   };
@@ -87,15 +90,28 @@ const AdminReports = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size exceeds 10MB limit");
+      e.target.value = "";
+      return;
+    }
+
     const result = await uploadFile(file, "reports");
     if (result) {
       setFormData((prev) => ({ ...prev, file_url: result.url }));
       toast.success("PDF uploaded");
+      e.target.value = "";
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const academicYearRegex = /^\d{4}-\d{2}$/;
+    if (!academicYearRegex.test(formData.academic_year)) {
+      toast.error("Academic Year must be in format YYYY-YY (e.g., 2024-25)");
+      return;
+    }
 
     try {
       if (editingReport) {
@@ -152,7 +168,7 @@ const AdminReports = () => {
                 Add Report
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingReport ? "Edit Report" : "Add New Report"}
@@ -221,6 +237,28 @@ const AdminReports = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="document_type">Document Type *</Label>
+                  <select
+                    id="document_type"
+                    value={formData.document_type}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        document_type: e.target.value,
+                      })
+                    }
+                    required
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="college_annual">
+                      Annual College Report
+                    </option>
+                    <option value="sac_annual">Annual SAC Report</option>
+                    <option value="other">Other Document</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Description (optional)</Label>
                   <Textarea
                     value={formData.description}
@@ -279,50 +317,56 @@ const AdminReports = () => {
               ))}
             </div>
           ) : reports && reports.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Academic Year</TableHead>
-                  <TableHead>Published</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell className="font-medium">
-                      {report.title}
-                    </TableCell>
-                    <TableCell>{report.academic_year}</TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={report.is_active}
-                        onCheckedChange={() => toggleActive(report)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(report)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(report.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Academic Year</TableHead>
+                    <TableHead>Published</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {reports.map((report) => (
+                    <TableRow key={report.id}>
+                      <TableCell className="font-medium">
+                        {report.title}
+                      </TableCell>
+                      <TableCell>{report.academic_year}</TableCell>
+                      <TableCell>
+                        <Switch
+                          aria-label="Toggle publish status"
+                          checked={report.is_active}
+                          onCheckedChange={() => toggleActive(report)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit report ${report.title}`}
+                            onClick={() => openEditDialog(report)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete report ${report.title}`}
+                            onClick={() => handleDelete(report.id)}
+                            disabled={deleteReport.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <p className="text-center text-muted-foreground py-8">
               No reports added yet

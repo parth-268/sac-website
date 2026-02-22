@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useSiteSettings, useUpdateSiteSetting } from "@/hooks/useSiteSettings";
 import { Button } from "@/components/ui/button";
@@ -23,10 +23,26 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 
+function isValidEmail(email: string) {
+  // Simple email regex validation
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export default function AdminSettings() {
   const { data: settings, isLoading } = useSiteSettings();
   const updateSetting = useUpdateSiteSetting();
   const [values, setValues] = useState<Record<string, string>>({});
+  const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(new Set());
+  const isSavingRef = useRef(false);
 
   useEffect(() => {
     if (settings) {
@@ -35,11 +51,30 @@ export default function AdminSettings() {
         initialValues[s.setting_key] = s.setting_value || "";
       });
       setValues(initialValues);
+      setDirtyKeys(new Set());
     }
   }, [settings]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (dirtyKeys.size > 0 && !isSavingRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [dirtyKeys]);
+
   const handleChange = (key: string, val: string) => {
     setValues((prev) => ({ ...prev, [key]: val }));
+    setDirtyKeys((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(key);
+      return newSet;
+    });
   };
 
   // Function to handle saving a single setting (used by ImageUpload auto-save)
@@ -52,18 +87,46 @@ export default function AdminSettings() {
         toast.error(`Setting '${key}' not found. Please run database setup.`);
         return;
       }
+      isSavingRef.current = true;
       await updateSetting.mutateAsync({
         id: settingObj.id,
         setting_value: value,
       });
-      toast.success("Logo updated successfully");
+      setDirtyKeys((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+      toast.success("Setting updated");
     } catch (error) {
       toast.error("Failed to save logo");
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   const handleSave = async (keysToSave: string[]) => {
+    // Validation before save
+    for (const key of keysToSave) {
+      const val = values[key] || "";
+      if (key === "contact_email" && val && !isValidEmail(val)) {
+        toast.error("Please enter a valid email address.");
+        return;
+      }
+      if (
+        (key.startsWith("social_") || key === "contact_map_url") &&
+        val &&
+        !isValidUrl(val)
+      ) {
+        toast.error(
+          "Please enter a valid URL starting with http:// or https://",
+        );
+        return;
+      }
+    }
+
     try {
+      isSavingRef.current = true;
       const promises = keysToSave.map((key) => {
         const settingObj = settings?.find((s) => s.setting_key === key);
         if (!settingObj) return Promise.resolve();
@@ -73,16 +136,26 @@ export default function AdminSettings() {
         });
       });
       await Promise.all(promises);
+      setDirtyKeys((prev) => {
+        const newSet = new Set(prev);
+        keysToSave.forEach((key) => newSet.delete(key));
+        return newSet;
+      });
       toast.success("Settings saved successfully");
     } catch (error) {
       toast.error("Failed to save settings");
+    } finally {
+      isSavingRef.current = false;
     }
   };
 
   if (isLoading)
     return (
       <AdminLayout title="Settings">
-        <Loader2 className="animate-spin" />
+        <div className="flex flex-col items-center justify-center h-64 gap-2">
+          <Loader2 className="animate-spin" />
+          <p className="text-muted-foreground">Loading settings…</p>
+        </div>
       </AdminLayout>
     );
 
@@ -213,7 +286,15 @@ export default function AdminSettings() {
                   "contact_map_url",
                 ])
               }
-              disabled={updateSetting.isPending}
+              disabled={
+                updateSetting.isPending ||
+                ![
+                  "contact_email",
+                  "contact_phone",
+                  "contact_address",
+                  "contact_map_url",
+                ].some((key) => dirtyKeys.has(key))
+              }
             >
               {updateSetting.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -295,7 +376,15 @@ export default function AdminSettings() {
                   "social_facebook",
                 ])
               }
-              disabled={updateSetting.isPending}
+              disabled={
+                updateSetting.isPending ||
+                ![
+                  "social_instagram",
+                  "social_linkedin",
+                  "social_twitter",
+                  "social_facebook",
+                ].some((key) => dirtyKeys.has(key))
+              }
             >
               {updateSetting.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -315,7 +404,7 @@ export default function AdminSettings() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Footer Description</Label>
-              <Input
+              <Textarea
                 value={values["footer_description"] || ""}
                 onChange={(e) =>
                   handleChange("footer_description", e.target.value)
@@ -336,7 +425,12 @@ export default function AdminSettings() {
               onClick={() =>
                 handleSave(["footer_description", "copyright_text"])
               }
-              disabled={updateSetting.isPending}
+              disabled={
+                updateSetting.isPending ||
+                !["footer_description", "copyright_text"].some((key) =>
+                  dirtyKeys.has(key),
+                )
+              }
             >
               {updateSetting.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

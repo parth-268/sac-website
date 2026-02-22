@@ -41,8 +41,10 @@ const cardVariants = {
 };
 
 // --- Hoisted helper functions ---
-const getDay = (dateStr: string) => format(new Date(dateStr), "dd");
-const getMonth = (dateStr: string) => format(new Date(dateStr), "MMM");
+const getDay = (dateStr: string) =>
+  format(new Date(`${dateStr}T00:00:00`), "dd");
+const getMonth = (dateStr: string) =>
+  format(new Date(`${dateStr}T00:00:00`), "MMM");
 // Helper to check if a date string is today
 const isToday = (dateStr: string): boolean => {
   const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -52,7 +54,7 @@ const isToday = (dateStr: string): boolean => {
 const getRelativeLabel = (dateStr: string): string | null => {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
-  const eventDate = new Date(dateStr);
+  const eventDate = new Date(`${dateStr}T00:00:00`);
   const diffTime = eventDate.getTime() - startOfToday.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
@@ -160,6 +162,7 @@ export const Events = () => {
                   }}
                   role="button"
                   tabIndex={0}
+                  aria-label={`View event ${event.title}`}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") navigate("/events");
                   }}

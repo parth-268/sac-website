@@ -70,7 +70,7 @@ const FadeInImage = ({ src, alt }: { src?: string; alt: string }) => {
           onLoad={() => setIsLoaded(true)}
           className={cn(
             "w-full h-full object-cover transition-all duration-700 ease-out will-change-transform",
-            "filter grayscale group-hover:grayscale-0 group-hover:scale-105",
+            "filter grayscale md:group-hover:grayscale-0 group-hover:scale-105",
             isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-105",
           )}
           loading="lazy"
@@ -119,24 +119,14 @@ export const Team = () => {
     return members
       .filter((m) => m.is_active)
       .sort((a, b) => {
-        const batchA = a.academic_batch
-          ? parseInt(String(a.academic_batch))
-          : 9999;
-        const batchB = b.academic_batch
-          ? parseInt(String(b.academic_batch))
-          : 9999;
-
-        if (batchA !== batchB) return batchA - batchB;
-
         const roleA =
-          ROLE_HIERARCHY[normalizeRole(a.designation)] ||
+          ROLE_HIERARCHY[normalizeRole(a.designation)] ??
           ROLE_HIERARCHY.coordinator;
         const roleB =
-          ROLE_HIERARCHY[normalizeRole(b.designation)] ||
+          ROLE_HIERARCHY[normalizeRole(b.designation)] ??
           ROLE_HIERARCHY.coordinator;
 
         if (roleA !== roleB) return roleA - roleB;
-
         return a.name.localeCompare(b.name);
       });
   }, [members]);
@@ -204,6 +194,8 @@ export const Team = () => {
                 whileInView="visible"
                 viewport={{ once: true, margin: "-80px" }}
                 className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 md:gap-6"
+                role="list"
+                aria-label="Team members"
               >
                 {sortedMembers.map((member) => (
                   <motion.div
@@ -217,6 +209,7 @@ export const Team = () => {
                     transition={CARD_TRANSITION}
                     style={{ willChange: "transform" }}
                     className="group relative flex flex-col bg-white rounded-xl border border-slate-200/60 overflow-hidden shadow-sm hover:shadow-xl hover:border-accent/20 transition-colors duration-300"
+                    role="listitem"
                   >
                     <div className="relative aspect-[3/4] overflow-hidden bg-slate-100 border-b border-slate-50">
                       <FadeInImage

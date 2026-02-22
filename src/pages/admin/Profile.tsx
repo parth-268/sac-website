@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Lock, User, Mail } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AdminSettings() {
   const { user } = useAuth();
@@ -28,16 +29,26 @@ export default function AdminSettings() {
 
   const handleProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName.trim()) {
+      toast.error("Full name cannot be empty");
+      return;
+    }
     await updateMyProfile.mutateAsync({ email, fullName });
+    toast.success("Profile updated successfully");
   };
 
   const handleSecurity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert("Passwords don't match");
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
     await updateMyPassword.mutateAsync(password);
+    toast.success("Password updated successfully");
     setPassword("");
     setConfirmPassword("");
   };
@@ -61,7 +72,7 @@ export default function AdminSettings() {
                 <CardDescription>Update your public details.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleProfile} className="space-y-4">
+                <form onSubmit={handleProfile} className="space-y-5">
                   <div className="space-y-2">
                     <Label>Full Name</Label>
                     <div className="relative">
@@ -70,6 +81,7 @@ export default function AdminSettings() {
                         className="pl-9"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
+                        autoComplete="name"
                       />
                     </div>
                   </div>
@@ -81,6 +93,8 @@ export default function AdminSettings() {
                         className="pl-9"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
+                        disabled
+                        autoComplete="email"
                       />
                     </div>
                   </div>
@@ -102,7 +116,7 @@ export default function AdminSettings() {
                 <CardDescription>Update your login password.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSecurity} className="space-y-4">
+                <form onSubmit={handleSecurity} className="space-y-5">
                   <div className="space-y-2">
                     <Label>New Password</Label>
                     <div className="relative">
@@ -112,6 +126,7 @@ export default function AdminSettings() {
                         className="pl-9"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="new-password"
                       />
                     </div>
                   </div>
@@ -124,6 +139,7 @@ export default function AdminSettings() {
                         className="pl-9"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
                       />
                     </div>
                   </div>

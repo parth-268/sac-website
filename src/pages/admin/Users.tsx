@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useUserDirectory } from "@/hooks/useUserDirectory";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,16 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { LucideIcon } from "lucide-react";
 
-// --- Components ---
+type StatCardProps = {
+  title: string;
+  value: number;
+  icon: LucideIcon;
+  color: string;
+};
 
-const StatCard = ({ title, value, icon: Icon, color }: any) => (
+const StatCard = ({ title, value, icon: Icon, color }: StatCardProps) => (
   <Card className="border-slate-100 shadow-sm">
     <CardContent className="p-4 flex items-center justify-between">
       <div>
@@ -49,6 +55,8 @@ export default function AdminUsersDirectory() {
   const [filter, setFilter] = useState("all");
   const navigate = useNavigate();
 
+  const goToTeam = useCallback(() => navigate("/admin/team"), [navigate]);
+
   // --- Logic ---
   const stats = useMemo(() => {
     if (!users) return { total: 0, admins: 0, team: 0 };
@@ -62,9 +70,6 @@ export default function AdminUsersDirectory() {
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     return users.filter((user) => {
-      const matchesSearch =
-        user.email?.toLowerCase().includes(search.toLowerCase()) ||
-        user.full_name?.toLowerCase().includes(search.toLowerCase());
       const matchesFilter =
         filter === "all"
           ? true
@@ -73,6 +78,12 @@ export default function AdminUsersDirectory() {
             : filter === "team"
               ? user.is_team_member
               : true;
+      const q = search.trim().toLowerCase();
+      if (!q) return matchesFilter;
+
+      const matchesSearch =
+        user.email?.toLowerCase().includes(q) ||
+        user.full_name?.toLowerCase().includes(q);
       return matchesSearch && matchesFilter;
     });
   }, [users, search, filter]);
@@ -138,11 +149,12 @@ export default function AdminUsersDirectory() {
       </div>
 
       {/* 3. List View (Responsive) */}
-      <div className="space-y-3">
+      <div className="space-y-3" role="list">
         {filteredUsers.map((user) => (
           <div
             key={user.user_id}
-            className="group relative bg-white rounded-xl border border-slate-200 p-4 transition-all hover:border-purple-200 hover:shadow-sm"
+            role="listitem"
+            className="group relative bg-white rounded-xl border border-slate-200 p-4 transition-all hover:border-purple-200 hover:shadow-sm cursor-pointer"
           >
             <div className="flex flex-col md:flex-row md:items-center gap-4">
               {/* Top Row (Mobile): Avatar + Name + Action */}
@@ -170,8 +182,9 @@ export default function AdminUsersDirectory() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Go to team management"
                     className="md:hidden h-8 w-8 -mr-2 text-slate-400"
-                    onClick={() => navigate("/admin/team")}
+                    onClick={goToTeam}
                   >
                     <ChevronRight className="w-5 h-5" />
                   </Button>
@@ -232,8 +245,9 @@ export default function AdminUsersDirectory() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Go to team management"
                     className="hidden md:flex h-8 w-8 text-slate-400 hover:text-purple-600 hover:bg-purple-50"
-                    onClick={() => navigate("/admin/team")}
+                    onClick={goToTeam}
                   >
                     <ChevronRight className="w-5 h-5" />
                   </Button>

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const navGroups = [
   {
@@ -130,15 +131,22 @@ export const AdminLayout = ({
     navigate("/");
   };
 
+  const { data: settings } = useSiteSettings();
+  const sacLogoUrl =
+    settings?.find((s) => s.setting_key === "sac_logo2_url")?.setting_value ??
+    null;
+
   return (
     <div className="min-h-screen bg-slate-50/50 flex">
       {/* --- DESKTOP SIDEBAR --- */}
       <aside className="hidden lg:flex flex-col w-64 bg-white border-r border-slate-200 fixed inset-y-0 z-30 overflow-hidden overscroll-contain">
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-105 transition-transform">
-              S
-            </div>
+            <img
+              src={sacLogoUrl ?? "/sac_logo.jpeg"}
+              alt="SAC Logo"
+              className="w-8 h-8 rounded-lg object-contain shadow-sm group-hover:scale-105 transition-transform"
+            />
             <div>
               <span className="font-heading font-bold text-sm text-slate-900 leading-none block">
                 SAC Admin

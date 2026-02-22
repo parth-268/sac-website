@@ -39,7 +39,7 @@ const SPRING_SOFT: Transition = {
 /* -------------------------------------------------------------------------- */
 
 export const Hero = () => {
-  const containerRef = useRef<HTMLElement>(null!);
+  const containerRef = useRef<HTMLElement | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
   /* ------------------------------ Data Fetch ------------------------------ */
@@ -82,13 +82,13 @@ export const Hero = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    if (banners.length <= 1) return;
+    if (banners.length <= 1 || shouldReduceMotion) return;
     const timer = setInterval(
       () => setCurrentSlide((p) => (p + 1) % banners.length),
       6500,
     );
     return () => clearInterval(timer);
-  }, [banners.length]);
+  }, [banners.length, shouldReduceMotion]);
 
   /* ------------------------------ Parallax ------------------------------ */
   const { scrollYProgress } = useScroll({
@@ -152,7 +152,7 @@ export const Hero = () => {
                 banners[currentSlide]?.image_url ||
                 "https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1920&auto=format&fit=crop"
               }
-              alt={`Hero Banner ${currentSlide + 1}`}
+              alt="Students' Affairs Council, IIM Sambalpur – Campus life and leadership"
               className="w-full h-full object-cover object-center"
               loading="lazy"
               {...(currentSlide === 0 ? { fetchpriority: "high" } : {})}

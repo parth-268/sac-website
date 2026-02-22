@@ -21,8 +21,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const AdminMessages = () => {
   const { data: websiteMessages, isLoading: websiteLoading } =
@@ -30,6 +31,7 @@ const AdminMessages = () => {
   const { data: deletedMessagesData, isLoading: deletedLoading } =
     useContactSubmissions("deleted");
   const markRead = useMarkSubmissionRead();
+  const queryClient = useQueryClient();
 
   const deleteMessages = async (ids: string[]) => {
     const { error } = await supabase
@@ -41,6 +43,10 @@ const AdminMessages = () => {
       .in("id", ids);
 
     if (error) throw error;
+
+    await queryClient.invalidateQueries({
+      queryKey: ["contact-submissions"],
+    });
   };
 
   const markUnreadMessages = async (ids: string[]) => {
@@ -50,6 +56,10 @@ const AdminMessages = () => {
       .in("id", ids);
 
     if (error) throw error;
+
+    await queryClient.invalidateQueries({
+      queryKey: ["contact-submissions"],
+    });
   };
 
   const restoreMessages = async (ids: string[]) => {
@@ -62,6 +72,10 @@ const AdminMessages = () => {
       .in("id", ids);
 
     if (error) throw error;
+
+    await queryClient.invalidateQueries({
+      queryKey: ["contact-submissions"],
+    });
   };
 
   const hardDeleteMessages = async (ids: string[]) => {
@@ -71,6 +85,10 @@ const AdminMessages = () => {
       .in("id", ids);
 
     if (error) throw error;
+
+    await queryClient.invalidateQueries({
+      queryKey: ["contact-submissions"],
+    });
   };
 
   const [selectedMessage, setSelectedMessage] = useState<
@@ -84,7 +102,18 @@ const AdminMessages = () => {
     "website",
   );
 
-  const toggleSelect = (id: string) => {
+  // --- New state derived from websiteMessages and deletedMessagesData
+  const unreadCount = websiteMessages?.filter((m) => !m.is_read).length || 0;
+
+  const visibleMessages = websiteMessages ?? [];
+  const deletedMessages = deletedMessagesData ?? [];
+
+  const isLoading = activeTab === "deleted" ? deletedLoading : websiteLoading;
+
+  const currentTabMessages =
+    activeTab === "deleted" ? deletedMessages : visibleMessages;
+
+  const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -94,18 +123,18 @@ const AdminMessages = () => {
       }
       return next;
     });
-  };
+  }, []);
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
       const ids = currentTabMessages.map((m) => m.id);
       const allSelected = ids.length > 0 && ids.every((id) => prev.has(id));
 
       return allSelected ? new Set() : new Set(ids);
     });
-  };
+  }, [currentTabMessages]);
 
-  const clearSelection = () => setSelectedIds(new Set());
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   const handleViewMessage = async (
     message: NonNullable<typeof websiteMessages>[number],
@@ -119,17 +148,6 @@ const AdminMessages = () => {
       }
     }
   };
-
-  // --- New state derived from websiteMessages and deletedMessagesData
-  const unreadCount = websiteMessages?.filter((m) => !m.is_read).length || 0;
-
-  const visibleMessages = websiteMessages ?? [];
-  const deletedMessages = deletedMessagesData ?? [];
-
-  const isLoading = activeTab === "deleted" ? deletedLoading : websiteLoading;
-
-  const currentTabMessages =
-    activeTab === "deleted" ? deletedMessages : visibleMessages;
 
   return (
     <AdminLayout title="Messages">
@@ -157,7 +175,7 @@ const AdminMessages = () => {
             </div>
 
             {selectedIds.size > 0 && (
-              <div className="sticky top-0 z-10 flex items-center justify-between rounded-md border bg-card/95 backdrop-blur shadow-sm px-4 py-2 animate-in fade-in slide-in-from-top-1">
+              <div className="sticky top-0 z-10 flex flex-wrap sm:flex-nowrap items-center gap-3 rounded-md border bg-card/95 backdrop-blur shadow-md px-4 py-2 animate-in fade-in slide-in-from-top-1">
                 <input
                   type="checkbox"
                   checked={
@@ -171,7 +189,8 @@ const AdminMessages = () => {
                 <span className="text-sm text-muted-foreground">
                   {selectedIds.size} selected
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                  {/* Order: Mark Unread → Clear → Delete */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -188,7 +207,6 @@ const AdminMessages = () => {
                   >
                     Mark Unread
                   </Button>
-
                   <Button
                     variant="outline"
                     size="sm"
@@ -196,7 +214,6 @@ const AdminMessages = () => {
                   >
                     Clear
                   </Button>
-
                   <Button
                     variant="destructive"
                     size="sm"
@@ -206,7 +223,6 @@ const AdminMessages = () => {
                       try {
                         await deleteMessages(ids);
                         clearSelection();
-
                         toast("Messages deleted", {
                           action: {
                             label: "Undo",
@@ -241,10 +257,19 @@ const AdminMessages = () => {
               {visibleMessages.map((message) => (
                 <div
                   key={message.id}
-                  onClick={() => handleViewMessage(message)}
-                  className={`group p-4 bg-card rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.995] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${message.is_read ? "border-border" : "border-accent"}`}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("input,button,svg"))
+                      return;
+                    handleViewMessage(message);
+                  }}
+                  className={`group p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md active:scale-[0.995] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    message.is_read
+                      ? "bg-card border-border"
+                      : "bg-accent/5 border-accent"
+                  }`}
                   role="button"
                   aria-selected={selectedIds.has(message.id)}
+                  aria-pressed={selectedIds.has(message.id)}
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -275,23 +300,40 @@ const AdminMessages = () => {
                           }`}
                         />
                       </div>
-                      <div>
-                        <h3 className="font-medium text-foreground">
-                          {message.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {message.email}
-                        </p>
-                        <p className="text-sm font-medium text-foreground mt-1">
-                          {message.subject}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-semibold text-foreground text-base ${
+                              !message.is_read ? "" : ""
+                            }`}
+                          >
+                            {message.subject}
+                          </span>
+                          {!message.is_read && (
+                            <span
+                              className="ml-1 flex-shrink-0 w-2 h-2 rounded-full bg-accent"
+                              title="Unread"
+                            />
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {message.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            •
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {message.email}
+                          </span>
+                        </div>
+                        <span className="text-sm text-muted-foreground mt-1 line-clamp-2 font-normal">
                           {message.message}
-                        </p>
+                        </span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         {message.is_read && (
                           <Button
                             size="icon"
@@ -311,7 +353,6 @@ const AdminMessages = () => {
                             <RotateCcw className="h-4 w-4" />
                           </Button>
                         )}
-
                         <Button
                           size="icon"
                           variant="ghost"
@@ -344,11 +385,9 @@ const AdminMessages = () => {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(message.created_at), "MMM d, yyyy")}
                       </span>
-
                       {message.is_read && (
                         <CheckCircle className="h-4 w-4 text-green-500" />
                       )}
@@ -385,9 +424,9 @@ const AdminMessages = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="deleted" className="space-y-6" key="deleted-tab">
+        <TabsContent value="deleted" className="space-y-6">
           {selectedIds.size > 0 && (
-            <div className="sticky top-0 z-10 flex items-center justify-between rounded-md border bg-card/95 backdrop-blur shadow-sm px-4 py-2 animate-in fade-in slide-in-from-top-1">
+            <div className="sticky top-0 z-10 flex items-center gap-3 flex-wrap sm:flex-nowrap rounded-md border bg-muted/80 border-destructive/40 backdrop-blur shadow-md px-4 py-2 animate-in fade-in slide-in-from-top-1">
               <input
                 type="checkbox"
                 checked={
@@ -401,7 +440,7 @@ const AdminMessages = () => {
               <span className="text-sm text-muted-foreground">
                 {selectedIds.size} selected
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
                 <Button
                   variant="outline"
                   size="sm"
@@ -418,7 +457,6 @@ const AdminMessages = () => {
                 >
                   Restore
                 </Button>
-
                 <Button
                   variant="destructive"
                   size="sm"
@@ -445,11 +483,9 @@ const AdminMessages = () => {
               </div>
             </div>
           )}
-
           <p className="text-sm text-muted-foreground">
             Deleted messages are retained until permanently removed.
           </p>
-
           {isLoading ? (
             <div className="flex justify-center items-center py-12 min-h-[200px]">
               <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -459,7 +495,7 @@ const AdminMessages = () => {
               {deletedMessages.map((message) => (
                 <div
                   key={message.id}
-                  className="group p-4 bg-card rounded-lg border border-destructive/40 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+                  className="group p-4 rounded-lg border border-destructive/40 transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive bg-muted/60 border-dashed"
                   tabIndex={0}
                 >
                   <div className="flex items-start gap-3">
@@ -471,16 +507,27 @@ const AdminMessages = () => {
                       className="mt-1 h-4 w-4 rounded border-border text-destructive focus:ring-destructive"
                       aria-label="Select deleted message"
                     />
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">
-                        {message.subject}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {message.name} • {message.email}
-                      </p>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-foreground">
+                          {message.subject}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-semibold border border-destructive/30 ml-1">
+                          Deleted
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {message.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground">
+                          {message.email}
+                        </span>
+                      </div>
+                      <span className="text-sm text-muted-foreground line-clamp-2 mt-1 font-normal">
                         {message.message}
-                      </p>
+                      </span>
                       <p className="text-xs text-muted-foreground mt-2">
                         Deleted on{" "}
                         {message.deleted_at
@@ -509,47 +556,62 @@ const AdminMessages = () => {
       {/* Message Detail Dialog */}
       <Dialog
         open={!!selectedMessage}
-        onOpenChange={() => {
-          setSelectedMessage(null);
+        onOpenChange={(open) => {
+          if (!open) setSelectedMessage(null);
         }}
       >
-        <DialogContent className="max-w-xl w-full">
-          <DialogHeader>
-            <DialogTitle>{selectedMessage?.subject}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="max-w-xl w-full max-h-[90vh] p-0 flex flex-col rounded-lg sm:rounded-lg">
           {selectedMessage && (
-            <div className="space-y-6">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">From:</span>
-                <span className="text-foreground">
-                  {selectedMessage.name} ({selectedMessage.email})
-                </span>
+            <>
+              {/* Header */}
+              <DialogHeader className="px-5 pt-5 pb-3 border-b">
+                <DialogTitle className="text-base sm:text-lg leading-tight">
+                  {selectedMessage.subject}
+                </DialogTitle>
+              </DialogHeader>
+
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+                {/* Sender info */}
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {selectedMessage.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground break-all">
+                    {selectedMessage.email}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(
+                      new Date(selectedMessage.created_at),
+                      "MMMM d, yyyy • h:mm a",
+                    )}
+                  </p>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap text-foreground">
+                    {selectedMessage.message}
+                  </p>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Date:</span>
-                <span className="text-foreground">
-                  {format(
-                    new Date(selectedMessage.created_at),
-                    "MMMM d, yyyy 'at' h:mm a",
-                  )}
-                </span>
+
+              {/* Sticky footer */}
+              <div className="border-t px-5 py-3 bg-background/95 backdrop-blur rounded-md">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    if (!selectedMessage.email) {
+                      toast.error("No email address available");
+                      return;
+                    }
+                    window.location.href = `mailto:${selectedMessage.email}?subject=Re: ${selectedMessage.subject}`;
+                  }}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Reply via Email
+                </Button>
               </div>
-              <div className="pt-4 border-t border-border max-h-[50vh] sm:max-h-[60vh] overflow-y-auto pr-1">
-                <p className="text-foreground whitespace-pre-wrap">
-                  {selectedMessage.message}
-                </p>
-              </div>
-              <Button
-                variant="default"
-                className="w-full mt-2"
-                onClick={() => {
-                  window.location.href = `mailto:${selectedMessage.email}?subject=Re: ${selectedMessage.subject}`;
-                }}
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Reply via Email
-              </Button>
-            </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

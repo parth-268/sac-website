@@ -526,6 +526,7 @@ export type Database = {
           created_at: string;
           description: string | null;
           display_order: number;
+          document_type: string;
           file_url: string;
           id: string;
           is_active: boolean;
@@ -537,6 +538,7 @@ export type Database = {
           created_at?: string;
           description?: string | null;
           display_order?: number;
+          document_type?: string;
           file_url: string;
           id?: string;
           is_active?: boolean;
@@ -548,6 +550,7 @@ export type Database = {
           created_at?: string;
           description?: string | null;
           display_order?: number;
+          document_type?: string;
           file_url?: string;
           id?: string;
           is_active?: boolean;
@@ -591,7 +594,6 @@ export type Database = {
       };
       team_members: {
         Row: {
-          academic_batch: string | null;
           batch_year: string | null;
           created_at: string;
           designation: string;
@@ -608,7 +610,6 @@ export type Database = {
           user_id: string | null;
         };
         Insert: {
-          academic_batch?: string | null;
           batch_year?: string | null;
           created_at?: string;
           designation: string;
@@ -625,7 +626,6 @@ export type Database = {
           user_id?: string | null;
         };
         Update: {
-          academic_batch?: string | null;
           batch_year?: string | null;
           created_at?: string;
           designation?: string;

@@ -1,15 +1,14 @@
+import React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { toast } from "sonner";
+
+/* ---------------- Hooks ---------------- */
 import {
   useAcademicYears,
   useActiveAcademicYear,
   useCreateAcademicYear,
 } from "@/hooks/useAcademicYears";
-import { format } from "date-fns";
-import { toast } from "sonner";
-
-import { AdminLayout } from "@/components/admin/AdminLayout";
-import { ImageUpload } from "@/components/admin/ImageUpload";
-
 import {
   useAdminEvents,
   useCreateEvent,
@@ -21,6 +20,9 @@ import {
 import { useClubs } from "@/hooks/useClubs";
 import { useCommittees } from "@/hooks/useCommittees";
 
+/* ---------------- UI ---------------- */
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { ImageUpload } from "@/components/admin/ImageUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,14 +52,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+/* ---------------- Icons ---------------- */
 import {
   Plus,
   Pencil,
   Trash2,
   Archive,
-  Calendar,
   ArchiveRestore,
+  Calendar,
+  Copy,
 } from "lucide-react";
+
+/* ---------------- Types ---------------- */
 import type { Tables } from "@/integrations/supabase/types";
 
 type EventRow = Tables<"events">;
@@ -81,6 +87,10 @@ interface EventForm {
   is_featured: boolean;
 }
 
+/* ============================================================
+ * Constants
+ * ============================================================ */
+
 const EMPTY_FORM: EventForm = {
   title: "",
   short_description: "",
@@ -98,26 +108,38 @@ const EMPTY_FORM: EventForm = {
   is_featured: false,
 };
 
+/* ============================================================
+ * Component
+ * ============================================================ */
+
 export default function AdminEvents() {
-  const today = new Date();
-  const todayTs = today.getTime();
-  const { data: clubs = [] } = useClubs();
-  const { data: committees = [] } = useCommittees();
+  /* ================= STATE ================= */
+
+  const todayTs = Date.now();
 
   const [mode, setMode] = useState<"current" | "past">("current");
   const [showArchivedCurrent, setShowArchivedCurrent] = useState(false);
   const [selectedPastYear, setSelectedPastYear] = useState<string | null>(null);
 
-  const { data: academicYears = [] } = useAcademicYears();
-  const { data: activeAcademicYear } = useActiveAcademicYear();
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // Academic Year Dialog state
+
+  const [isDirty, setIsDirty] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
+
   const [yearDialogOpen, setYearDialogOpen] = useState(false);
   const [newAcademicYear, setNewAcademicYear] = useState("");
+
+  /* ================= DATA ================= */
+
+  const { data: clubs = [] } = useClubs();
+  const { data: committees = [] } = useCommittees();
+
+  const { data: academicYears = [] } = useAcademicYears();
+  const { data: activeAcademicYear } = useActiveAcademicYear();
 
   const visibleYear =
     mode === "current" ? activeAcademicYear?.year : selectedPastYear;
@@ -127,6 +149,8 @@ export default function AdminEvents() {
     includeArchived: mode === "past" || showArchivedCurrent,
   });
 
+  /* ================= MUTATIONS ================= */
+
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
   const archiveEvent = useArchiveEvent();
@@ -134,17 +158,12 @@ export default function AdminEvents() {
   const bulkDelete = useBulkDeleteEvents();
   const createAcademicYear = useCreateAcademicYear();
 
-  /* ---------------- Filtering ---------------- */
+  /* ================= DERIVED DATA ================= */
 
-  // Safety filter in case query cache returns mixed academic years
   const filteredEvents = useMemo(() => {
     if (!visibleYear) return [];
     return events.filter((e) => e.academic_year === visibleYear);
   }, [events, visibleYear]);
-  const archivedCurrentYear = useMemo(
-    () => filteredEvents.filter((e) => e.is_archived),
-    [filteredEvents],
-  );
 
   const publishedUpcoming = useMemo(
     () =>
@@ -155,6 +174,11 @@ export default function AdminEvents() {
           new Date(e.event_date).getTime() >= todayTs,
       ),
     [filteredEvents, todayTs],
+  );
+
+  const archivedCurrentYear = useMemo(
+    () => filteredEvents.filter((e) => e.is_archived),
+    [filteredEvents],
   );
 
   const drafts = useMemo(
@@ -169,70 +193,6 @@ export default function AdminEvents() {
       ),
     [filteredEvents, todayTs],
   );
-
-  /* ---------------- Helpers ---------------- */
-
-  const resetForm = useCallback(() => {
-    setEditingId(null);
-    setForm({
-      ...EMPTY_FORM,
-      academic_year: activeAcademicYear?.year ?? "",
-    });
-  }, [activeAcademicYear?.year]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      const payload = {
-        ...form,
-        start_time: form.start_time || null,
-        end_time: form.end_time || null,
-        venue: form.venue || null,
-      };
-
-      if (editingId) {
-        await updateEvent.mutateAsync({ id: editingId, ...payload });
-        toast.success("Event updated");
-      } else {
-        await createEvent.mutateAsync(payload);
-        toast.success("Event created");
-      }
-
-      setDialogOpen(false);
-      resetForm();
-    } catch {
-      toast.error("Failed to save event");
-    }
-  };
-
-  const confirmDelete = async (ids: string[]) => {
-    if (!confirm("This action cannot be undone. Continue?")) return;
-    await bulkDelete.mutateAsync({ ids });
-    toast.success("Events deleted");
-    setSelectedIds(new Set());
-  };
-
-  const onEditEvent = (e: EventRow) => {
-    setEditingId(e.id);
-    setForm({
-      title: e.title,
-      short_description: e.short_description ?? "",
-      description: e.description,
-      banner_image_url: e.banner_image_url ?? "",
-      conducted_by_type: e.conducted_by_type as ConductedByType,
-      conducted_by_id: e.conducted_by_id,
-      conducted_by_name: e.conducted_by_name ?? "",
-      event_date: e.event_date,
-      start_time: e.start_time ?? "",
-      end_time: e.end_time ?? "",
-      venue: e.venue ?? "",
-      academic_year: e.academic_year ?? "",
-      is_published: e.is_published,
-      is_featured: e.is_featured,
-    });
-    setDialogOpen(true);
-  };
 
   const pastEventsByMonth = useMemo(() => {
     if (mode !== "past" || filteredEvents.length === 0) return [];
@@ -255,18 +215,149 @@ export default function AdminEvents() {
       ),
     }));
   }, [filteredEvents, mode]);
-  /* ========================================================== */
 
-  // Reset form when academic year changes (safety)
+  /* ================= HELPERS ================= */
+
+  const resetForm = useCallback(() => {
+    setEditingId(null);
+    setForm({
+      ...EMPTY_FORM,
+      academic_year: activeAcademicYear?.year ?? "",
+    });
+  }, [activeAcademicYear?.year]);
+
+  const updateForm = useCallback((patch: Partial<EventForm>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    setIsDirty(true);
+  }, []);
+
+  const handleSubmit = React.useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (form.is_published && !form.banner_image_url) {
+        toast.error("Banner image is required to publish an event");
+        return;
+      }
+      try {
+        const payload = {
+          ...form,
+          start_time: form.start_time || null,
+          end_time: form.end_time || null,
+          venue: form.venue || null,
+        };
+
+        if (editingId) {
+          await updateEvent.mutateAsync({ id: editingId, ...payload });
+          toast.success("Event updated");
+        } else {
+          await createEvent.mutateAsync(payload);
+          toast.success("Event created");
+        }
+
+        setDialogOpen(false);
+        setIsDirty(false);
+        resetForm();
+      } catch (err) {
+        toast.error("Failed to save event");
+      }
+    },
+    [form, editingId, createEvent, updateEvent, resetForm],
+  );
+
+  /* ================= ACTION HANDLERS ================= */
+
+  const onEditEvent = useCallback((e: EventRow) => {
+    setEditingId(e.id);
+    setForm({
+      title: e.title,
+      short_description: e.short_description ?? "",
+      description: e.description,
+      banner_image_url: e.banner_image_url ?? "",
+      conducted_by_type: e.conducted_by_type as ConductedByType,
+      conducted_by_id: e.conducted_by_id,
+      conducted_by_name: e.conducted_by_name ?? "",
+      event_date: e.event_date,
+      start_time: e.start_time ?? "",
+      end_time: e.end_time ?? "",
+      venue: e.venue ?? "",
+      academic_year: e.academic_year ?? "",
+      is_published: e.is_published,
+      is_featured: e.is_featured,
+    });
+    setDialogOpen(true);
+  }, []);
+
+  const onCloneEvent = useCallback(
+    (e: EventRow) => {
+      setEditingId(null);
+      setForm({
+        ...EMPTY_FORM,
+        title: `${e.title} (Copy)`,
+        description: e.description,
+        short_description: e.short_description ?? "",
+        banner_image_url: e.banner_image_url ?? "",
+        conducted_by_type: e.conducted_by_type as ConductedByType,
+        conducted_by_id: e.conducted_by_id,
+        conducted_by_name: e.conducted_by_name ?? "",
+        venue: e.venue ?? "",
+        academic_year: activeAcademicYear?.year ?? "",
+      });
+      setIsDirty(true);
+      setDialogOpen(true);
+    },
+    [activeAcademicYear?.year],
+  );
+
+  const confirmDelete = useCallback(
+    async (ids: string[]) => {
+      if (!confirm("This action cannot be undone. Continue?")) return;
+      await bulkDelete.mutateAsync({ ids });
+      toast.success("Events deleted");
+      setSelectedIds(new Set());
+    },
+    [bulkDelete],
+  );
+
+  /* ================= AUTOSAVE EFFECT ================= */
+
   useEffect(() => {
-    if (activeAcademicYear?.year) {
-      resetForm();
-    }
+    if (!editingId || !isDirty || form.is_published) return;
+
+    const t = setTimeout(async () => {
+      try {
+        setAutoSaving(true);
+        await updateEvent.mutateAsync({
+          id: editingId,
+          ...form,
+          start_time: form.start_time || null,
+          end_time: form.end_time || null,
+          venue: form.venue || null,
+        });
+        setIsDirty(false);
+      } catch {
+        /* silent */
+      } finally {
+        setAutoSaving(false);
+      }
+    }, 1200);
+
+    return () => clearTimeout(t);
+  }, [form, editingId, isDirty, updateEvent]);
+
+  /* ================= SAFETY EFFECTS ================= */
+
+  useEffect(() => {
+    setSelectedIds(
+      (prev) =>
+        new Set([...prev].filter((id) => events.some((e) => e.id === id))),
+    );
+  }, [events]);
+
+  useEffect(() => {
+    resetForm();
   }, [activeAcademicYear?.year, resetForm]);
 
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [mode, visibleYear, showArchivedCurrent]);
+  /* ================= RENDER ================= */
 
   return (
     <AdminLayout title="Events Management">
@@ -328,14 +419,31 @@ export default function AdminEvents() {
             Start New Academic Year
           </Button>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              if (!open && isDirty) {
+                const confirmClose = confirm(
+                  "You have unsaved changes. Discard them?",
+                );
+                if (!confirmClose) return;
+              }
+
+              setDialogOpen(open);
+
+              if (!open) {
+                resetForm();
+                setIsDirty(false);
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button
                 variant="gold"
                 disabled={mode === "past" || !activeAcademicYear}
                 onClick={() => {
                   setEditingId(null);
-                  setForm({
+                  updateForm({
                     ...EMPTY_FORM,
                     academic_year: activeAcademicYear?.year ?? "",
                   });
@@ -355,6 +463,15 @@ export default function AdminEvents() {
               <DialogHeader>
                 <DialogTitle>
                   {editingId ? "Edit Event" : "Create Event"}
+                  {editingId && (
+                    <span className="ml-3 text-xs text-muted-foreground">
+                      {autoSaving
+                        ? "Saving…"
+                        : isDirty
+                          ? "Unsaved changes"
+                          : "Saved"}
+                    </span>
+                  )}
                 </DialogTitle>
               </DialogHeader>
 
@@ -369,28 +486,24 @@ export default function AdminEvents() {
                       label="Title"
                       required
                       value={form.title}
-                      onChange={(v: string) => setForm({ ...form, title: v })}
+                      onChange={(v: string) => updateForm({ title: v })}
                     />
                     <InputField
                       label="Short Description"
                       required
                       value={form.short_description}
                       onChange={(v: string) =>
-                        setForm({ ...form, short_description: v })
+                        updateForm({ short_description: v })
                       }
                     />
                     <TextareaField
                       label="Description"
                       value={form.description}
-                      onChange={(v: string) =>
-                        setForm({ ...form, description: v })
-                      }
+                      onChange={(v: string) => updateForm({ description: v })}
                     />
                     <ImageUpload
                       value={form.banner_image_url}
-                      onChange={(url) =>
-                        setForm({ ...form, banner_image_url: url })
-                      }
+                      onChange={(url) => updateForm({ banner_image_url: url })}
                       folder="events"
                       label="Event Banner"
                     />
@@ -411,8 +524,7 @@ export default function AdminEvents() {
                                 ? "Ethos Team"
                                 : "";
 
-                        setForm({
-                          ...form,
+                        updateForm({
                           conducted_by_type: v as ConductedByType,
                           conducted_by_id: null,
                           conducted_by_name: label,
@@ -433,8 +545,7 @@ export default function AdminEvents() {
                         value={form.conducted_by_id ?? ""}
                         onChange={(v: string) => {
                           const club = clubs.find((c) => c.id === v);
-                          setForm({
-                            ...form,
+                          updateForm({
                             conducted_by_id: v,
                             conducted_by_name: club?.name ?? "",
                           });
@@ -449,8 +560,7 @@ export default function AdminEvents() {
                         value={form.conducted_by_id ?? ""}
                         onChange={(v: string) => {
                           const committee = committees.find((c) => c.id === v);
-                          setForm({
-                            ...form,
+                          updateForm({
                             conducted_by_id: v,
                             conducted_by_name: committee?.name ?? "",
                           });
@@ -473,30 +583,24 @@ export default function AdminEvents() {
                       label="Date"
                       type="date"
                       value={form.event_date}
-                      onChange={(v: string) =>
-                        setForm({ ...form, event_date: v })
-                      }
+                      onChange={(v: string) => updateForm({ event_date: v })}
                     />
                     <InputField
                       label="Start Time"
                       type="time"
                       value={form.start_time}
-                      onChange={(v: string) =>
-                        setForm({ ...form, start_time: v })
-                      }
+                      onChange={(v: string) => updateForm({ start_time: v })}
                     />
                     <InputField
                       label="End Time"
                       type="time"
                       value={form.end_time}
-                      onChange={(v: string) =>
-                        setForm({ ...form, end_time: v })
-                      }
+                      onChange={(v: string) => updateForm({ end_time: v })}
                     />
                     <InputField
                       label="Venue"
                       value={form.venue}
-                      onChange={(v: string) => setForm({ ...form, venue: v })}
+                      onChange={(v: string) => updateForm({ venue: v })}
                     />
                   </Section>
 
@@ -505,24 +609,43 @@ export default function AdminEvents() {
                     <Toggle
                       label="Published"
                       checked={form.is_published}
-                      onChange={(v: boolean) =>
-                        setForm({ ...form, is_published: v })
-                      }
+                      onChange={(v: boolean) => updateForm({ is_published: v })}
                     />
                     <Toggle
                       label="Featured"
                       checked={form.is_featured}
-                      onChange={(v: boolean) =>
-                        setForm({ ...form, is_featured: v })
-                      }
+                      onChange={(v: boolean) => updateForm({ is_featured: v })}
                     />
                   </Section>
                 </div>
 
                 <div className="border-t pt-4">
-                  <Button type="submit" className="w-full">
-                    {editingId ? "Update Event" : "Create Event"}
-                  </Button>
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (isDirty) {
+                          const ok = confirm(
+                            "You have unsaved changes. Discard them?",
+                          );
+                          if (!ok) return;
+                        }
+                        setDialogOpen(false);
+                        resetForm();
+                        setIsDirty(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+
+                    <Button
+                      type="submit"
+                      disabled={createEvent.isPending || updateEvent.isPending}
+                    >
+                      {editingId ? "Update Event" : "Create Event"}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </DialogContent>
@@ -677,6 +800,7 @@ export default function AdminEvents() {
                   archiveEvent.mutate({ id, archived })
                 }
                 onDelete={confirmDelete}
+                onClone={onCloneEvent}
               />
             </EventSection>
 
@@ -694,6 +818,7 @@ export default function AdminEvents() {
                   archiveEvent.mutate({ id, archived })
                 }
                 onDelete={confirmDelete}
+                onClone={onCloneEvent}
               />
             </EventSection>
 
@@ -711,6 +836,7 @@ export default function AdminEvents() {
                   archiveEvent.mutate({ id, archived })
                 }
                 onDelete={confirmDelete}
+                onClone={onCloneEvent}
               />
             </EventSection>
 
@@ -732,6 +858,7 @@ export default function AdminEvents() {
                     archiveEvent.mutate({ id, archived })
                   }
                   onDelete={confirmDelete}
+                  onClone={onCloneEvent}
                 />
               </EventSection>
             )}
@@ -759,6 +886,7 @@ export default function AdminEvents() {
                   archiveEvent.mutate({ id, archived })
                 }
                 onDelete={confirmDelete}
+                onClone={onCloneEvent}
               />
             </MonthSection>
           ))}
@@ -776,9 +904,10 @@ type EventsTableProps = {
   onEdit: (event: EventRow) => void;
   onArchive: (id: string, archived: boolean) => void;
   onDelete: (ids: string[]) => void;
+  onClone: (event: EventRow) => void;
 };
 
-function EventsTable({
+const EventsTable = React.memo(function EventsTable({
   events,
   selectedIds,
   setSelectedIds,
@@ -786,6 +915,7 @@ function EventsTable({
   onEdit,
   onArchive,
   onDelete,
+  onClone,
 }: EventsTableProps) {
   return (
     <div className="border rounded-lg bg-card overflow-hidden">
@@ -891,6 +1021,15 @@ function EventsTable({
                 <Button
                   size="icon"
                   variant="ghost"
+                  onClick={() => onClone(e)}
+                  aria-label="Clone event"
+                  title="Clone event"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
                   onClick={() => onDelete([e.id])}
                   aria-label="Delete event"
                 >
@@ -903,7 +1042,7 @@ function EventsTable({
       </Table>
     </div>
   );
-}
+});
 
 function EventSection({
   title,
@@ -977,6 +1116,7 @@ function InputField({
     <div>
       <Label>{label}</Label>
       <Input
+        className="mt-1"
         type={type}
         value={value}
         required={required}
@@ -1000,6 +1140,7 @@ function TextareaField({
     <div>
       <Label>{label}</Label>
       <Textarea
+        className="mt-1"
         rows={4}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -1023,7 +1164,7 @@ function SelectField({
     <div>
       <Label>{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger aria-label={label}>
+        <SelectTrigger className="mt-1" aria-label={label}>
           <SelectValue placeholder={`Select ${label}`} />
         </SelectTrigger>
         <SelectContent>

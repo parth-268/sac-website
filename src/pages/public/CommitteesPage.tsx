@@ -14,13 +14,6 @@ import {
   useReducedMotion,
 } from "framer-motion";
 
-const Skeleton = ({ className }: { className: string }) => (
-  <div
-    className={`animate-pulse rounded-md bg-muted ${className}`}
-    aria-hidden="true"
-  />
-);
-
 const fadeUp = (reduced: boolean): Variants => ({
   hidden: { opacity: 0, y: reduced ? 0 : 12 },
   visible: {
@@ -60,9 +53,14 @@ const dialog = (reduced: boolean): Variants => ({
 
 const CommitteesPage = () => {
   const { data: committees, isLoading } = useCommittees({ onlyActive: true });
-  const [activeCommittee, setActiveCommittee] =
-    useState<Tables<"committees"> | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const committeeId = searchParams.get("committee");
+
+  const activeCommittee = useMemo(() => {
+    if (!committeeId || !committees) return null;
+    return committees.find((c) => c.id === committeeId) ?? null;
+  }, [committeeId, committees]);
 
   const prefersReducedMotion = !!useReducedMotion();
 
@@ -77,28 +75,6 @@ const CommitteesPage = () => {
       };
     }
   }, [activeCommittee]);
-
-  useEffect(() => {
-    if (!committees) return;
-
-    const committeeId = searchParams.get("committee");
-    if (!committeeId) return;
-
-    const match = committees.find((c) => c.id === committeeId);
-    if (match) {
-      setActiveCommittee(match);
-    }
-  }, [committees, searchParams]);
-
-  useEffect(() => {
-    if (activeCommittee) {
-      setSearchParams({ committee: activeCommittee.id }, { replace: true });
-    } else {
-      const params = new URLSearchParams(searchParams);
-      params.delete("committee");
-      setSearchParams(params, { replace: true });
-    }
-  }, [activeCommittee, searchParams, setSearchParams]);
 
   const { data: members, isLoading: membersLoading } = useCommitteeMembers(
     activeCommittee?.id,
@@ -117,7 +93,7 @@ const CommitteesPage = () => {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setActiveCommittee(null);
+        setSearchParams({});
         return;
       }
 
@@ -137,7 +113,7 @@ const CommitteesPage = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeCommittee]);
+  }, [activeCommittee, setSearchParams]);
 
   const getIcon = (iconName: string) => {
     const Icon = icons[iconName as keyof typeof icons] as any;
@@ -159,12 +135,15 @@ const CommitteesPage = () => {
   const visibleMembers =
     membersTab === "senior" ? seniorMembers : juniorMembers;
   // Handlers for dialog open/close
-  const handleOpenCommittee = useCallback((committee: Tables<"committees">) => {
-    setActiveCommittee(committee);
-  }, []);
+  const handleOpenCommittee = useCallback(
+    (committee: Tables<"committees">) => {
+      setSearchParams({ committee: committee.id }, { replace: true });
+    },
+    [setSearchParams],
+  );
   const handleCloseDialog = useCallback(() => {
-    setActiveCommittee(null);
-  }, []);
+    setSearchParams({});
+  }, [setSearchParams]);
 
   useEffect(() => {
     if (!activeCommittee) return;
@@ -175,6 +154,20 @@ const CommitteesPage = () => {
       setMembersTab("junior");
     }
   }, [activeCommittee, seniorMembers.length]);
+
+  useEffect(() => {
+    if (!activeCommittee) setMembersTab("senior");
+  }, [activeCommittee]);
+
+  const Skeleton = useCallback(
+    ({ className }: { className: string }) => (
+      <div
+        aria-hidden
+        className={`animate-pulse rounded-md bg-muted ${className}`}
+      />
+    ),
+    [],
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -211,57 +204,55 @@ const CommitteesPage = () => {
               }}
               className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {committees
-                ?.filter((committee) => committee.is_active)
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((committee) => (
-                  <motion.article
-                    key={committee.id}
-                    role="button"
-                    tabIndex={0}
-                    variants={fadeUp(prefersReducedMotion)}
-                    whileHover={{ y: -2 }}
-                    transition={{ type: "tween", duration: 0.2 }}
-                    onClick={() => handleOpenCommittee(committee)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        handleOpenCommittee(committee);
-                      }
-                    }}
-                    className="group relative h-full rounded-2xl border border-border bg-card p-6 cursor-pointer hover:border-accent/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                  >
-                    <div className="mb-4 flex items-center gap-3">
-                      {committee.logo_url ? (
-                        <img
-                          src={committee.logo_url}
-                          alt={`${committee.name} logo`}
-                          className="w-11 h-11 rounded-xl object-cover"
-                        />
-                      ) : (
-                        <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors">
-                          {getIcon(committee.icon)}
-                        </div>
-                      )}
-                      <h3 className="font-heading text-lg font-semibold leading-tight">
-                        {committee.name}
-                      </h3>
-                    </div>
-
-                    <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 whitespace-pre-line">
-                      {committee.description}
-                    </p>
-
-                    <div className="mt-5 flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        View details
-                      </span>
-                      <ChevronRight
-                        aria-hidden="true"
-                        className="w-4 h-4 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all"
+              {committees?.map((committee) => (
+                <motion.article
+                  key={committee.id}
+                  role="button"
+                  aria-haspopup="dialog"
+                  tabIndex={0}
+                  variants={fadeUp(prefersReducedMotion)}
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "tween", duration: 0.2 }}
+                  onClick={() => handleOpenCommittee(committee)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      handleOpenCommittee(committee);
+                    }
+                  }}
+                  className="group relative h-full rounded-2xl border border-border bg-card p-6 cursor-pointer hover:border-accent/40 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                >
+                  <div className="mb-4 flex items-center gap-3">
+                    {committee.logo_url ? (
+                      <img
+                        src={committee.logo_url}
+                        alt={`${committee.name} logo`}
+                        className="w-11 h-11 rounded-xl object-cover"
                       />
-                    </div>
-                  </motion.article>
-                ))}
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-foreground group-hover:bg-accent group-hover:text-white transition-colors">
+                        {getIcon(committee.icon)}
+                      </div>
+                    )}
+                    <h3 className="font-heading text-lg font-semibold leading-tight">
+                      {committee.name}
+                    </h3>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 whitespace-pre-line">
+                    {committee.description}
+                  </p>
+
+                  <div className="mt-5 flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      View details
+                    </span>
+                    <ChevronRight
+                      aria-hidden="true"
+                      className="w-4 h-4 text-muted-foreground group-hover:text-accent group-hover:translate-x-1 transition-all"
+                    />
+                  </div>
+                </motion.article>
+              ))}
             </motion.div>
           )}
         </div>
@@ -294,9 +285,10 @@ const CommitteesPage = () => {
               aria-labelledby="committee-title"
               variants={dialog(prefersReducedMotion)}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-6 md:px-6 md:py-8 shadow-xl overscroll-contain focus:outline-none"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-5 md:px-6 md:py-8 shadow-xl overscroll-contain focus:outline-none"
             >
               <button
+                type="button"
                 onClick={handleCloseDialog}
                 className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
                 aria-label="Close dialog"
@@ -372,6 +364,7 @@ const CommitteesPage = () => {
                       <div className="flex gap-2">
                         <button
                           type="button"
+                          aria-live="polite"
                           onClick={() => setMembersTab("senior")}
                           className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
                             membersTab === "senior"
@@ -384,6 +377,7 @@ const CommitteesPage = () => {
 
                         <button
                           type="button"
+                          aria-live="polite"
                           onClick={() => setMembersTab("junior")}
                           className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
                             membersTab === "junior"
