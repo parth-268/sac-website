@@ -222,8 +222,9 @@ export const Contact = () => {
               </h2>
 
               <p className="text-white/60 text-sm max-w-md leading-relaxed">
-                This section is optional — but if you have a question, idea, or
-                collaboration in mind, we’re happy to hear from you.
+                If you have a question, idea, or collaboration in mind,
+                <br />
+                we’re happy to hear from you.
               </p>
             </div>
 

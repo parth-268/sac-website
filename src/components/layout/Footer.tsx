@@ -79,10 +79,10 @@ export const Footer = () => {
 
   const resourceLinks = useMemo(
     () => [
-      { label: "Clubs & Committees", to: "/clubs" },
       { label: "Photo Gallery", to: "/gallery" },
       { label: "News & Updates", to: "/news" },
-      { label: "Student Portal", to: "/login" },
+      { label: "Student Corner", to: "/student-corner" },
+      { label: "SAC Portal", to: "/login" },
     ],
     [],
   );
