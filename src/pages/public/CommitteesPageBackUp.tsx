@@ -64,6 +64,9 @@ const CommitteesPage = () => {
 
   const prefersReducedMotion = !!useReducedMotion();
 
+  const [membersTab, setMembersTab] = useState<"senior" | "junior">("senior");
+  const hasInitialisedTab = useRef(false);
+
   useEffect(() => {
     if (activeCommittee) {
       const originalStyle = window.getComputedStyle(document.body).overflow;
@@ -118,6 +121,10 @@ const CommitteesPage = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeCommittee, setSearchParams]);
 
+  useEffect(() => {
+    hasInitialisedTab.current = false;
+  }, [activeCommittee?.id]);
+
   const getIcon = (iconName: string) => {
     const Icon = icons[iconName as keyof typeof icons] as any;
     return Icon ? (
@@ -131,6 +138,12 @@ const CommitteesPage = () => {
     () => members?.filter((m) => m.role === "senior") ?? [],
     [members],
   );
+  const juniorMembers = useMemo(
+    () => members?.filter((m) => m.role === "junior") ?? [],
+    [members],
+  );
+  const visibleMembers =
+    membersTab === "senior" ? seniorMembers : juniorMembers;
   // Handlers for dialog open/close
   const handleOpenCommittee = useCallback(
     (committee: Tables<"committees">) => {
@@ -141,6 +154,14 @@ const CommitteesPage = () => {
   const handleCloseDialog = useCallback(() => {
     setSearchParams({});
   }, [setSearchParams]);
+
+  useEffect(() => {
+    if (!activeCommittee || !members) return;
+    if (hasInitialisedTab.current) return;
+
+    setMembersTab(seniorMembers.length > 0 ? "senior" : "junior");
+    hasInitialisedTab.current = true;
+  }, [activeCommittee, members, seniorMembers.length]);
 
   const Skeleton = useCallback(
     ({ className }: { className: string }) => (
@@ -157,7 +178,7 @@ const CommitteesPage = () => {
       <Navbar />
 
       <PageHero
-        title=""
+        title="Academic"
         highlight="Committees"
         description="Committees that ensure academic excellence, governance, and seamless student coordination."
         variant="centered"
@@ -269,7 +290,7 @@ const CommitteesPage = () => {
               aria-labelledby="committee-title"
               variants={dialog(prefersReducedMotion)}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-3xl lg:max-w-4xl max-h-[82vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-5 md:px-8 md:py-10 shadow-xl overscroll-contain focus:outline-none"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background px-4 py-5 md:px-6 md:py-8 shadow-xl overscroll-contain focus:outline-none"
             >
               <button
                 type="button"
@@ -324,7 +345,7 @@ const CommitteesPage = () => {
                   </div>
                 </div>
 
-                <div className="border-t pt-2">
+                <div className="border-t pt-4">
                   <h3 className="text-sm font-semibold mb-3">
                     Committee Members
                   </h3>
@@ -344,14 +365,43 @@ const CommitteesPage = () => {
                     </p>
                   ) : (
                     <div className="space-y-4">
+                      {/* Tabs */}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          aria-live="polite"
+                          onClick={() => setMembersTab("senior")}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
+                            membersTab === "senior"
+                              ? "bg-accent text-white border-accent"
+                              : "bg-background text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Senior Members ({seniorMembers.length})
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-live="polite"
+                          onClick={() => setMembersTab("junior")}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium border transition ${
+                            membersTab === "junior"
+                              ? "bg-accent text-white border-accent"
+                              : "bg-background text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Junior Members ({juniorMembers.length})
+                        </button>
+                      </div>
+
                       {/* List */}
-                      {seniorMembers.length === 0 ? (
+                      {visibleMembers.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
-                          No committee members listed.
+                          No {membersTab} members listed.
                         </p>
                       ) : (
                         <ul className="divide-y border rounded-lg overflow-hidden">
-                          {seniorMembers.map((m) => (
+                          {visibleMembers.map((m) => (
                             <li
                               key={m.id}
                               className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
@@ -360,11 +410,14 @@ const CommitteesPage = () => {
                                 <div className="font-medium text-foreground">
                                   {m.name}
                                 </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {m.designation}
+                                </div>
                               </div>
 
                               {m.phone && (
                                 <div className="text-xs text-muted-foreground sm:text-right">
-                                  {m.designation}
+                                  {m.phone}
                                 </div>
                               )}
                             </li>

@@ -31,6 +31,9 @@ type Club = Tables<"clubs">;
 const ClubsPage = () => {
   const prefersReducedMotion = !!useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [activeMemberTab, setActiveMemberTab] = useState<"senior" | "junior">(
+    "senior",
+  );
 
   // Derive clubId from URL search params
   const clubId = searchParams.get("club");
@@ -45,8 +48,16 @@ const ClubsPage = () => {
     return clubs.find((c) => c.id === clubId) ?? null;
   }, [clubId, clubs]);
 
+  // Reset member tab when club changes
+  useEffect(() => {
+    if (clubId) {
+      setActiveMemberTab("senior");
+    }
+  }, [clubId]);
+
   // Central dialog close handler
   const handleCloseDialog = useCallback(() => {
+    setActiveMemberTab("senior");
     setSearchParams({});
   }, [setSearchParams]);
 
@@ -108,12 +119,6 @@ const ClubsPage = () => {
     [],
   );
 
-  useEffect(() => {
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -149,10 +154,11 @@ const ClubsPage = () => {
                   aria-label={`Open details for ${club.name}`}
                   aria-haspopup="dialog"
                   aria-expanded={activeClub?.id === club.id}
-                  onClick={() => {
-                    if (activeClub?.id === club.id) return;
-                    setSearchParams({ club: club.id });
-                  }}
+                  onClick={() =>
+                    setSearchParams({
+                      club: club.id,
+                    })
+                  }
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -254,8 +260,9 @@ const ClubsPage = () => {
                         aria-label={`Explore ${club.name}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (activeClub?.id === club.id) return;
-                          setSearchParams({ club: club.id });
+                          setSearchParams({
+                            club: club.id,
+                          });
                         }}
                         className="text-xs font-medium text-accent flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity focus:outline-none"
                       >
@@ -304,7 +311,7 @@ const ClubsPage = () => {
               tabIndex={-1}
               variants={dialog}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full md:max-w-3xl lg:max-w-4xl max-h-[82vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background shadow-xl overscroll-contain px-2"
+              className="relative w-full md:max-w-2xl max-h-[85vh] md:max-h-[80vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl bg-background shadow-xl overscroll-contain px-2"
             >
               {/* Header */}
               <div className="px-6 pt-6 pb-4 border-b">
@@ -319,18 +326,8 @@ const ClubsPage = () => {
                 </button>
 
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary flex items-center justify-center overflow-hidden border">
-                    {activeClub.logo_url ? (
-                      <img
-                        src={activeClub.logo_url}
-                        alt={`${activeClub.name} logo`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      getIcon(activeClub.icon)
-                    )}
+                  <div className="w-12 h-12 shrink-0 rounded-xl bg-secondary flex items-center justify-center">
+                    {getIcon(activeClub.icon)}
                   </div>
 
                   <div className="flex-1">
@@ -378,56 +375,161 @@ const ClubsPage = () => {
                   </p>
                 </section>
 
-                {/* Member List (Senior only) */}
+                {/* Member Tabs */}
                 <section>
-                  {/* Junior members UI intentionally hidden for now.
-                      Data & hooks retained for future rollout. */}
-                  <div className="mt-2">
-                    <section id="senior-panel" className="space-y-3">
-                      {/* <h3 className="text-sm font-semibold text-foreground">
-                        Senior Team
-                      </h3> */}
-                      {!seniorMembers ? (
-                        <ul className="space-y-3">
-                          {[...Array(3)].map((_, i) => (
-                            <li key={i} className="px-4 py-3 border rounded-lg">
-                              <Skeleton className="h-4 w-32 mb-2" />
-                              <Skeleton className="h-3 w-24" />
-                            </li>
-                          ))}
-                        </ul>
-                      ) : seniorMembers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          Senior team details will be updated soon.
-                        </p>
-                      ) : (
-                        <ul className="divide-y border rounded-lg overflow-hidden bg-background">
-                          {seniorMembers.map((m) => (
-                            <li
-                              key={m.id}
-                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
-                            >
-                              <div>
-                                <div className="font-medium text-foreground">
-                                  {m.name}
-                                </div>
-                              </div>
+                  <div
+                    className="flex gap-6 border-b pb-2 flex-wrap"
+                    role="tablist"
+                    aria-label="Club Member Tabs"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeMemberTab === "senior"}
+                      aria-controls="senior-panel"
+                      className={
+                        activeMemberTab === "senior"
+                          ? "text-accent border-b-2 border-accent pb-2 text-sm font-semibold"
+                          : "text-muted-foreground hover:text-foreground pb-2 text-sm font-medium"
+                      }
+                      onClick={() => {
+                        setActiveMemberTab("senior");
+                      }}
+                      tabIndex={activeMemberTab === "senior" ? 0 : -1}
+                    >
+                      Senior Team
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeMemberTab === "junior"}
+                      aria-controls="junior-panel"
+                      className={
+                        activeMemberTab === "junior"
+                          ? "text-accent border-b-2 border-accent pb-2 text-sm font-semibold"
+                          : "text-muted-foreground hover:text-foreground pb-2 text-sm font-medium"
+                      }
+                      onClick={() => {
+                        setActiveMemberTab("junior");
+                      }}
+                      tabIndex={activeMemberTab === "junior" ? 0 : -1}
+                    >
+                      Junior Team
+                    </button>
+                  </div>
 
-                              {m.phone && (
-                                <div className="text-xs text-muted-foreground">
-                                  {m.designation}
+                  <div className="mt-4">
+                    {activeMemberTab === "senior" && (
+                      // Senior Members JSX as before
+                      <section
+                        id="senior-panel"
+                        role="tabpanel"
+                        className="space-y-3"
+                      >
+                        {/* <h3 className="text-sm font-semibold text-foreground">
+                          Senior Team
+                        </h3> */}
+                        {!seniorMembers ? (
+                          <ul className="space-y-3">
+                            {[...Array(3)].map((_, i) => (
+                              <li
+                                key={i}
+                                className="px-4 py-3 border rounded-lg"
+                              >
+                                <Skeleton className="h-4 w-32 mb-2" />
+                                <Skeleton className="h-3 w-24" />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : seniorMembers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            Senior team details will be updated soon.
+                          </p>
+                        ) : (
+                          <ul className="divide-y border rounded-lg overflow-hidden bg-background">
+                            {seniorMembers.map((m) => (
+                              <li
+                                key={m.id}
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                              >
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    {m.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.designation}
+                                  </div>
                                 </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </section>
+
+                                {m.phone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.phone}
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
+                    {activeMemberTab === "junior" && (
+                      // Junior Members JSX as before
+                      <section
+                        id="junior-panel"
+                        role="tabpanel"
+                        className="space-y-3"
+                      >
+                        {/* <h3 className="text-sm font-semibold text-foreground">
+                          Junior Team
+                        </h3> */}
+                        {!juniorMembers ? (
+                          <ul className="space-y-3">
+                            {[...Array(3)].map((_, i) => (
+                              <li
+                                key={i}
+                                className="px-4 py-3 border rounded-lg"
+                              >
+                                <Skeleton className="h-4 w-32 mb-2" />
+                                <Skeleton className="h-3 w-24" />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : juniorMembers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            Junior team details will be updated soon.
+                          </p>
+                        ) : (
+                          <ul className="divide-y border rounded-lg overflow-hidden bg-background">
+                            {juniorMembers.map((m) => (
+                              <li
+                                key={m.id}
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 text-sm"
+                              >
+                                <div>
+                                  <div className="font-medium text-foreground">
+                                    {m.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.designation}
+                                  </div>
+                                </div>
+
+                                {m.phone && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {m.phone}
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </section>
+                    )}
                   </div>
                 </section>
 
                 {/* Social links */}
-                <section className="flex items-center gap-4">
+                <section className="flex items-center gap-4 pt-2">
                   {activeClub.instagram_url ? (
                     <a
                       href={activeClub.instagram_url}
