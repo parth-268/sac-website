@@ -184,7 +184,7 @@ const AdminDashboard = () => {
 
   // Only count upcoming events (today or later, published, not archived)
   const todayISO = React.useMemo(
-    () => new Date().toISOString().split("T")[0],
+    () => new Date().toLocaleDateString("en-CA"),
     [],
   );
   const upcomingEvents =
